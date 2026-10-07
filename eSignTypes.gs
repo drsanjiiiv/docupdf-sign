@@ -64,6 +64,8 @@ function _defaultType() {
     signerBNameColumn: 0,
     signerADesignationColumn: 0,  // 'Signer A Designation'
     signerBDesignationColumn: 0,  // 'Signer B Designation'
+    signerACompanyColumn: 0,      // 'Signer A Company'
+    signerBCompanyColumn: 0,      // 'Signer B Company'
     docNameColumn: 0,
     statusColumn: 0,              // 'DocuPDF Status'
     signerAStatusColumn: 0,      // 'Signer A Status' (per-slot, 0 = not mapped)
@@ -119,7 +121,7 @@ function _seedTypeFromSetup(type) {
     var cols = [
       'signingRequiredColumn', 'signerEmailColumn', 'signerNameColumn',
       'signerADesignationColumn', 'signerBEmailColumn', 'signerBNameColumn',
-      'signerBDesignationColumn', 'docNameColumn',
+      'signerBDesignationColumn', 'signerACompanyColumn', 'signerBCompanyColumn', 'docNameColumn',
       'statusColumn', 'documentSignedColumn', 'linkAColumn', 'linkBColumn',
       'sourceColumn', 'mergedDocStatusColumn', 'mergedDocIdColumn', 'mergedDocUrlColumn',
       'signerAStatusColumn', 'signerBStatusColumn',

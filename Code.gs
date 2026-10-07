@@ -1116,6 +1116,8 @@ function _defaultConfig() {
     signerBNameColumn: 0,     // Party B name
     signerADesignationColumn: 0, // 'Signer A Designation'
     signerBDesignationColumn: 0, // 'Signer B Designation'
+    signerACompanyColumn: 0,     // 'Signer A Company'
+    signerBCompanyColumn: 0,     // 'Signer B Company'
     docNameColumn: 0,
     statusColumn: 0,          // 'DocuPDF Status'
     signerAStatusColumn: 0,   // 'Signer A Status' (per-slot, 0 = not mapped)
@@ -1170,9 +1172,11 @@ var COL_HEADER = {
   signerAEmail: 'Signer A Email',
   signerAName: 'Signer A Name',
   signerADesignation: 'Signer A Designation',
+  signerACompany: 'Signer A Company',
   signerBEmail: 'Signer B Email',
   signerBName: 'Signer B Name',
   signerBDesignation: 'Signer B Designation',
+  signerBCompany: 'Signer B Company',
   sourceDoc: 'Source Doc ID/URL',
   docName: 'Doc Name',
   status: 'DocuPDF Status',
@@ -1254,9 +1258,11 @@ function _resolveConfigColumns(sheet, cfg) {
   cfg.signerEmailColumn = find(COL_HEADER.signerAEmail) || findContains('recipient email') || cfg.signerEmailColumn;
   cfg.signerNameColumn = find(COL_HEADER.signerAName) || cfg.signerNameColumn;
   cfg.signerADesignationColumn = find(COL_HEADER.signerADesignation) || cfg.signerADesignationColumn;
+  cfg.signerACompanyColumn = find(COL_HEADER.signerACompany) || cfg.signerACompanyColumn;
   cfg.signerBEmailColumn = find(COL_HEADER.signerBEmail) || cfg.signerBEmailColumn;
   cfg.signerBNameColumn = find(COL_HEADER.signerBName) || cfg.signerBNameColumn;
   cfg.signerBDesignationColumn = find(COL_HEADER.signerBDesignation) || cfg.signerBDesignationColumn;
+  cfg.signerBCompanyColumn = find(COL_HEADER.signerBCompany) || cfg.signerBCompanyColumn;
   cfg.sourceColumn = find(COL_HEADER.sourceDoc) || cfg.sourceColumn;
   cfg.docNameColumn = find(COL_HEADER.docName) || cfg.docNameColumn;
   cfg.statusColumn = find(COL_HEADER.status) || cfg.statusColumn;
@@ -1508,9 +1514,11 @@ function SETUP_SHEET() {
       var order = [
         COL_HEADER.signerAName,
         COL_HEADER.signerADesignation,
+        COL_HEADER.signerACompany,
         COL_HEADER.signerAEmail,
         COL_HEADER.signerBName,
         COL_HEADER.signerBDesignation,
+        COL_HEADER.signerBCompany,
         COL_HEADER.signerBEmail,
         COL_HEADER.status,
         COL_HEADER.documentSigned,
@@ -1652,8 +1660,8 @@ function _setupTargetSheet(ss) {
 function _columnSummary(sheet, cfg) {
   var out = {};
   var names = [
-    COL_HEADER.signingRequired, COL_HEADER.signerAName, COL_HEADER.signerADesignation,
-    COL_HEADER.signerAEmail, COL_HEADER.signerBName, COL_HEADER.signerBDesignation,
+    COL_HEADER.signingRequired, COL_HEADER.signerAName, COL_HEADER.signerADesignation, COL_HEADER.signerACompany,
+    COL_HEADER.signerAEmail, COL_HEADER.signerBName, COL_HEADER.signerBDesignation, COL_HEADER.signerBCompany,
     COL_HEADER.signerBEmail, COL_HEADER.sourceDoc,
     COL_HEADER.docName, COL_HEADER.status, COL_HEADER.documentSigned,
     COL_HEADER.signerAStatus, COL_HEADER.signerBStatus,
@@ -2054,6 +2062,7 @@ function _createAndWriteJob(sheet, rowNumber, fileId, config, sourceLabel) {
       signerEmail: emailA,
       signerName: cell(config.signerNameColumn),
       signerDesignation: cell(config.signerADesignationColumn),
+      signerCompany: cell(config.signerACompanyColumn),
       page: Number(pA.page) || 0,
       align: pA.align || 'center',
       vOffset: Number(pA.vOffset) || 0.85
@@ -2066,6 +2075,7 @@ function _createAndWriteJob(sheet, rowNumber, fileId, config, sourceLabel) {
         signerEmail: emailB,
         signerName: cell(config.signerBNameColumn),
         signerDesignation: cell(config.signerBDesignationColumn),
+        signerCompany: cell(config.signerBCompanyColumn),
         page: Number(pB.page) || 0,
         align: pB.align || 'center',
         vOffset: Number(pB.vOffset) || 0.85

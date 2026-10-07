@@ -271,6 +271,10 @@
           <select id="signerADesignationColumn"></select>
         </div>
         <div class="field-row">
+          <label>Party A company column <span style="color:#5f6368;">(optional — On-behalf-of heading)</span></label>
+          <select id="signerACompanyColumn"></select>
+        </div>
+        <div class="field-row">
           <label>Party B email column <span style="color:#5f6368;">(optional)</span></label>
           <select id="signerBEmailColumn"></select>
         </div>
@@ -281,6 +285,10 @@
         <div class="field-row">
           <label>Party B designation column <span style="color:#5f6368;">(optional)</span></label>
           <select id="signerBDesignationColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Party B company column <span style="color:#5f6368;">(optional — On-behalf-of heading)</span></label>
+          <select id="signerBCompanyColumn"></select>
         </div>
         <div class="field-row">
           <label>Doc name column <span style="color:#5f6368;">(optional)</span></label>
@@ -571,9 +579,11 @@
       ['signerEmailColumn', 'signerEmailColumn'],
       ['signerNameColumn', 'signerNameColumn'],
       ['signerADesignationColumn', 'signerADesignationColumn'],
+      ['signerACompanyColumn', 'signerACompanyColumn'],
       ['signerBEmailColumn', 'signerBEmailColumn'],
       ['signerBNameColumn', 'signerBNameColumn'],
       ['signerBDesignationColumn', 'signerBDesignationColumn'],
+      ['signerBCompanyColumn', 'signerBCompanyColumn'],
       ['docNameColumn', 'docNameColumn'],
       ['linkAColumn', 'linkAColumn'],
       ['linkBColumn', 'linkBColumn'],
@@ -798,9 +808,11 @@
       t.signerEmailColumn = num('signerEmailColumn');
       t.signerNameColumn = num('signerNameColumn');
       t.signerADesignationColumn = num('signerADesignationColumn');
+      t.signerACompanyColumn = num('signerACompanyColumn');
       t.signerBEmailColumn = num('signerBEmailColumn');
       t.signerBNameColumn = num('signerBNameColumn');
       t.signerBDesignationColumn = num('signerBDesignationColumn');
+      t.signerBCompanyColumn = num('signerBCompanyColumn');
       t.docNameColumn = num('docNameColumn');
       t.linkAColumn = num('linkAColumn');
       t.linkBColumn = num('linkBColumn');
