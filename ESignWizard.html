@@ -169,6 +169,8 @@
     #saveBtn { background-color: #137333; color: #ffffff; border-color: #0f5d29; }
     #nextBtn:disabled, #saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
     #backBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pw-help { font-size: 11px; color: #5f6368; margin-top: 2px; line-height: 1.35; }
+    .check + .pw-help { margin-top: -8px; margin-bottom: 10px; }
   </style>
 </head>
 
@@ -320,7 +322,8 @@
           <select id="signerBStatusColumn"></select>
         </div>
         <div class="field-row">
-          <label>Signed PDFs folder (Drive) ID <span style="color:#5f6368;">(empty = auto-created)</span></label>
+          <label>Output folder for signed PDFs <span style="color:#5f6368;">(Drive folder ID — leave blank to auto-create)</span></label>
+          <div class="pw-help">Where the finalized PDF is saved after all signatures are complete. This is a Drive folder you own, not an email recipient.</div>
           <input type="text" id="outputFolderId" placeholder="Folder ID">
         </div>
       </div>
@@ -330,17 +333,24 @@
         <p class="instruction-text" id="emailStepInstruction">Configure the signing email. Use {signerName}, {signerDesignation}, {signerEmail}, {docName}, {signUrl} placeholders.</p>
         <div id="emailFields">
           <label class="check"><input type="checkbox" id="autoSendEmail"> Auto-send the signing email after each job</label>
+          <div class="pw-help">When enabled, the engine sends the sign link to each signer as soon as a job is created.</div>
           <label class="check"><input type="checkbox" id="attachSourcePdf"> Attach the unsigned PDF to the email</label>
+          <div class="pw-help">Includes a copy of the source document in each signer's email so they can review it offline.</div>
           <label class="check"><input type="checkbox" id="emailWorkingToSigners"> Email working PDF to each signer after they sign</label>
+          <div class="pw-help">After a signer signs, they receive the partially signed document (with all signatures so far).</div>
           <label class="check"><input type="checkbox" id="emailFinalToSigners"> Email final signed PDF to all signers when complete</label>
+          <div class="pw-help">When the last signer signs, everyone receives the finalized document with all signatures and the audit stamp.</div>
           <label class="check"><input type="checkbox" id="notifyOnFinalize"> Notify me when the signed PDF is ready</label>
+          <div class="pw-help">Sends the completed document to you (the owner) as soon as all signatures are in.</div>
           <div id="notifyOnFinalizeWarn" class="field-note" style="color:#b3261e;display:none;">Note: turning this off also disables the signed PDF email to the owner.</div>
           <div class="field-row">
             <label>Notify email <span style="color:#5f6368;">(blank = owner)</span></label>
+            <div class="pw-help">Where notifications go. Leave blank to use your Google account's email.</div>
             <input type="text" id="notifyOwnerEmail" placeholder="you@company.com">
           </div>
           <div class="field-row">
             <label>Company name (sender)</label>
+            <div class="pw-help">Appears as the sender name on outgoing emails.</div>
             <input type="text" id="companyName" placeholder="Acme Inc.">
           </div>
           <div class="field-row">
@@ -359,9 +369,11 @@
           <label class="check"><input type="checkbox" id="qrInEmail" checked> Add a QR code of the signing link in the email</label>
           <div class="field-row">
             <label>Remind signers after (days) <span style="color:#5f6368;">(0 = off)</span></label>
+            <div class="pw-help">Automatically re-email signers who haven't signed within this many days. 0 disables reminders.</div>
             <input type="number" id="reminderDays" min="0" value="0">
           </div>
           <label class="check"><input type="checkbox" id="sequentialSigning"> Sequential signing — Party A signs first, then Party B is emailed</label>
+          <div class="pw-help">When enabled, Party B doesn't receive their link until Party A has signed.</div>
           <div class="field-row">
             <label>Reply-to <span style="color:#5f6368;">(optional)</span></label>
             <input type="text" id="replyToEmail" placeholder="sales@acme.com">
