@@ -704,4 +704,3 @@ function _driveSetViewerPermission(fileId) {
     return { ok: false, error: e.message };
   }
 }
-\n
