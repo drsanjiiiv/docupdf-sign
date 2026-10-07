@@ -204,17 +204,13 @@
           <select id="sheetSelect"></select>
           <div class="field-note">Defaults to the sheet you are currently viewing. Switch here if the rows live on another tab.</div>
         </div>
-        <div class="info-box" id="modeInfo">
-          template mode: <strong id="modeName">Standalone</strong><br>
-          <span id="modeReason">No Template-based columns found — DocuPDF emails signers itself.</span>
-        </div>
       </div>
 
       <!-- STEP 3: Template PDF -->
       <div class="step-panel" id="panelStep3">
         <p class="instruction-text">Choose the PDF template this E-sign uses. <b>Browse</b> grants the add-on access to the file (required under the app's secure file scope).</p>
         <div class="field-row">
-          <label>Template for this E-sign (PDF or Google Doc) <span style="color:#5f6368;">(standalone mode)</span></label>
+          <label>Template for this E-sign (PDF or Google Doc)</label>
           <div style="display:flex;gap:8px;">
             <input type="text" id="templatePdfInput" placeholder="Paste a Drive link / file ID, or browse">
             <button type="button" id="pickPdfBtn" onclick="pickPdf()" style="flex-shrink:0;min-height:38px;padding:0 14px;border:1px solid #155cb4;background:#1a73e8;color:#fff;border-radius:4px;cursor:pointer;font-size:13px;">📂 Browse</button>
@@ -544,8 +540,7 @@
         '\u2022 Each type = one signing workflow for a set of rows.',
       2: 'Choose which sheet (tab) holds the rows to sign.\n' +
         '\u2022 Defaults to the sheet you are currently viewing.\n' +
-        '\u2022 Switch here if the rows live on another tab.\n' +
-        '\u2022 template mode is detected automatically from the sheet columns: Template-based columns (merged doc\u2026, Recipient Email) → template mode (DocuPDF writes links, Template emails). Otherwise Standalone (DocuPDF emails signers itself).',
+        '\u2022 Switch here if the rows live on another tab.',
       3: 'Choose the PDF template this E-sign uses.\n' +
         '\u2022 Use \u201cBrowse\u201d so the add-on is granted access to the file (needed under the app\u2019s secure drive.file scope).\n' +
         '\u2022 Every row of this E-sign signs this same template PDF.\n' +
@@ -565,9 +560,8 @@
         '\u2022 DocuPDF Status: job status per row.\n' +
         '\u2022 Document Signed: auto-maintained (blank = pending, No = not required, Signed by\u2026 = done).\n' +
         '\u2022 Signed PDFs folder: blank = auto-created for you.',
-      7: 'The email signers receive with their signing link (Standalone mode only).\n' +
-        '\u2022 {signerName}, {signerDesignation}, {signerEmail}, {docName} and {signUrl} placeholders are replaced automatically.\n' +
-        'In template mode no email is needed here \u2014 Template sends it.',
+      7: 'The email signers receive with their signing link.\n' +
+        '\u2022 {signerName}, {signerDesignation}, {signerEmail}, {docName} and {signUrl} placeholders are replaced automatically.',
       8: 'How often this E-sign is checked for new rows.\n' +
         '\u2022 Manual: run only when you press Run (or via the sheet edit trigger).\n' +
         '\u2022 Timed: runs every 5 min to 24 h. Remember to enable Auto-sync from the menu.'
@@ -698,13 +692,6 @@
     function updateModeDisplay(mode) {
       state.detectedMode = mode;
       var istemplate = (mode === 'template');
-      document.getElementById('modeName').textContent = istemplate ? 'Template-based' : 'Standalone';
-      document.getElementById('modeReason').textContent = istemplate
-        ? 'Found Template-based columns (merged doc\u2026 / Recipient Email) — DocuPDF writes the sign links and Template sends the email.'
-        : 'No Template-based columns found — DocuPDF emails the signing links itself.';
-      document.getElementById('modeInfo').style.background = istemplate ? '#e8f0fe' : '#e6f4ea';
-      document.getElementById('modeInfo').style.borderColor = istemplate ? '#c2d8fd' : '#ceead6';
-      document.getElementById('modeInfo').style.color = istemplate ? '#1a73e8' : '#137333';
       var standalone = !istemplate;
       document.getElementById('emailFields').style.display = standalone ? '' : 'none';
       document.getElementById('templateEmailInfo').style.display = standalone ? 'none' : '';
@@ -785,8 +772,7 @@
       }
       if (n === 7) {
         if (state.detectedMode !== 'template') {
-          if (!document.getElementById('emailSubject').value.trim()) return 'Email subject is required in standalone mode (Step 7).';
-          if (!document.getElementById('emailBody').value.trim()) return 'Email body is required in standalone mode (Step 7).';
+          if (!document.getElementById('emailSubject').value.trim() || !document.getElementById('emailBody').value.trim()) return 'Email subject and body are required (Step 7).';
         }
       }
       return null;
