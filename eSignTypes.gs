@@ -477,8 +477,8 @@ function OPEN_ESIGN_MODAL(typeId) {
   try {
     var html = HtmlService.createTemplateFromFile('ESignWizard').evaluate()
       .setTitle(APP_NAME + ' — E-sign Configuration')
-      .setWidth(680)
-      .setHeight(620);
+      .setWidth(780)
+      .setHeight(720);
     html.append('<script>window.__ESIGN_TYPE_ID__ = ' + JSON.stringify(String(typeId || '')) + ';</script>');
     SpreadsheetApp.getUi().showModalDialog(html, 'E-sign Configuration');
   } catch (err) {
