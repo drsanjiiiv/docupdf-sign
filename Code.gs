@@ -33,7 +33,16 @@ var PREVIEW_INLINE_MAX_BYTES = 20 * 1024 * 1024;
 // out every recipient without a Google account. Verified with:
 //   curl -i --max-redirs 0 "<this URL>?job=..&signToken=..&nonce=.."
 // A working deployment returns 200 with HTML.
-var WEB_APP_BASE_URL = 'https://script.google.com/macros/s/AKfycbxfcjxpR0anZjAq0x4gRKRTYfxVBg7pU456uYsH0yKK/exec';
+//
+// The Head deployment AKfycbxfcjxpR0an… has a known-broken anonymous-access
+// enforcement: the Apps Script API reports ANYONE_ANONYMOUS, but anonymous HTTP
+// GETs return 302 → accounts.google.com/ServiceLogin. Verified twice (07 Oct
+// 2026). The v29 deployment AKfycbxNBAD9… enforces anonymous access correctly —
+// an unauthenticated GET reaches doGet and returns HTML. We pin WEB_APP_BASE_URL
+// to v29 deliberately. Any future change to the signer page requires a new
+// version deploy to v29. Do not revert this to the Head URL without re-testing
+// anonymous access.
+var WEB_APP_BASE_URL = 'https://script.google.com/macros/s/AKfycbxNBAD9NbHh2-lcrEVg5t90oKd0-YOtV2Nxt5Z9Bou4MVx9zbK4W9Wb7I9z9dCaDCb7/exec';
 
 /**
  * Returns the script's web-app base URL. Prefers ScriptApp.getService().getUrl()
