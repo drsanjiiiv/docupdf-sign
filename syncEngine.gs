@@ -64,8 +64,9 @@ function _rowMatchesFilter(sheet, rowNumber, cfg) {
 
 /**
  * Processes ONE row if it passes the gate. Idempotent.
- * Gate: row filter AND 'Signing Required' = Yes AND source id resolvable
- * AND 'DocuPDF Status' empty (or 'Blocked*' for retry).
+ * Gate: row filter AND 'Signing Required' = Yes (gate skipped when the sheet
+ * has no 'Signing Required' column — standalone/manual pick) AND source id
+ * resolvable AND 'DocuPDF Status' empty (or 'Blocked*' for retry).
  * @return {Object} { processed, reason?, result? }
  */
 function _maybeProcessRow(sheet, rowNumber, cfg) {
@@ -79,16 +80,20 @@ function _maybeProcessRow(sheet, rowNumber, cfg) {
       }
     };
 
-    // Gate 1: Signing Required. 'No' -> mark 'Document Signed' as 'No' and skip.
-    var req = read(cfg.signingRequiredColumn).toLowerCase();
-    if (req !== 'yes') {
-      if (req === 'no' && cfg.documentSignedColumn > 0) {
-        var cur = read(cfg.documentSignedColumn);
-        if (!cur || cur === 'No') {
-          _setRowValue(sheet, rowNumber, cfg.documentSignedColumn, 'No');
+    // Gate 1: Signing Required. Skipped when the sheet has no 'Signing
+    // Required' column (standalone/manual setup — the row was picked
+    // explicitly). 'No' -> mark 'Document Signed' as 'No' and skip.
+    if (cfg.signingRequiredColumn) {
+      var req = read(cfg.signingRequiredColumn).toLowerCase();
+      if (req !== 'yes') {
+        if (req === 'no' && cfg.documentSignedColumn > 0) {
+          var cur = read(cfg.documentSignedColumn);
+          if (!cur || cur === 'No') {
+            _setRowValue(sheet, rowNumber, cfg.documentSignedColumn, 'No');
+          }
         }
+        return { processed: false, reason: 'not required' };
       }
-      return { processed: false, reason: 'not required' };
     }
 
     // Gate 2: already signed (Document Signed = "Signed by ...") -> never reprocess.
