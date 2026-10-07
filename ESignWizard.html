@@ -537,7 +537,7 @@
       2: 'Choose which sheet (tab) holds the rows to sign.\n' +
         '\u2022 Defaults to the sheet you are currently viewing.\n' +
         '\u2022 Switch here if the rows live on another tab.\n' +
-        '\u2022 template mode is detected automatically from the sheet columns: Template-based columns (merged documentsumentsumentsuments\u2026, Recipient Email) → template mode (DocuPDF writes links, Template emails). Otherwise Standalone (DocuPDF emails signers itself).',
+        '\u2022 template mode is detected automatically from the sheet columns: Template-based columns (merged doc\u2026, Recipient Email) → template mode (DocuPDF writes links, Template emails). Otherwise Standalone (DocuPDF emails signers itself).',
       3: 'Choose the PDF template this E-sign uses.\n' +
         '\u2022 Use \u201cBrowse\u201d so the add-on is granted access to the file (needed under the app\u2019s secure drive.file scope).\n' +
         '\u2022 Every row of this E-sign signs this same template PDF.\n' +
@@ -678,7 +678,7 @@
 
     function detectMode(headers) {
       var joined = String((headers || []).join('|')).toLowerCase();
-      var markers = ['merged documentsumentsuments status', 'merged documentsumentsuments id', 'merged documentsumentsuments url', 'recipient email'];
+      var markers = ['merged doc status', 'merged doc id', 'merged doc url', 'recipient email'];
       for (var i = 0; i < markers.length; i++) {
         if (joined.indexOf(markers[i]) !== -1) return 'template';
       }
@@ -690,7 +690,7 @@
       var istemplate = (mode === 'template');
       document.getElementById('modeName').textContent = istemplate ? 'Template-based' : 'Standalone';
       document.getElementById('modeReason').textContent = istemplate
-        ? 'Found Template-based columns (merged documentsumentsumentsuments\u2026 / Recipient Email) — DocuPDF writes the sign links and Template sends the email.'
+        ? 'Found Template-based columns (merged doc\u2026 / Recipient Email) — DocuPDF writes the sign links and Template sends the email.'
         : 'No Template-based columns found — DocuPDF emails the signing links itself.';
       document.getElementById('modeInfo').style.background = istemplate ? '#e8f0fe' : '#e6f4ea';
       document.getElementById('modeInfo').style.borderColor = istemplate ? '#c2d8fd' : '#ceead6';
