@@ -4,19 +4,33 @@
 .clasprc.json.original
 client_secret_*.json
 
+# ── Internal notes and analysis (local only) ────────────────────
+SESSION_STATE.md
+PLAN.md
+Plan for Deepseek.md
+revision 01.md
+VERSION_CLEANUP.md
+CODEBASE_NOTE.md
+SETUP.md
+SCOPES_JUSTIFICATION.txt
+PlanR*.md
+*.internal.md
+
+# ── Non-code text files ─────────────────────────────────────────
+*.txt
+
 # ── Local backups / temp files ──────────────────────────────────
 *.bak
 *.fixed
 *.clean
 *.tmp
 *.orig
-
-# ── Junk from previous sessions ─────────────────────────────────
 t1.bin
 t2.bin
 
 # ── Local-machine clasp state ───────────────────────────────────
 .clasp-account
+clasp.ps1
 
 # ── Tooling / logs ──────────────────────────────────────────────
 node_modules/
