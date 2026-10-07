@@ -1,0 +1,431 @@
+<!--
+  file name: SidebarWizard.html
+  E-sign Engine sidebar: lists E-sign types for the current spreadsheet.
+  All configuration happens in the step-by-step modal (ESignWizard.html).
+  Mirrors Template-based's template sidebar.
+-->
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+<base target="_top">
+  <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      padding: 0;
+      margin: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: #f8f9fa;
+      color: #3c4043;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 16px 16px 8px 16px;
+      border-bottom: 1px solid #e8eaed;
+      background: #ffffff;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header h2 { margin: 0; font-size: 18px; color: #1a73e8; font-weight: 500; }
+    .sidebar-header p { margin: 4px 0 0 0; font-size: 12px; color: #5f6368; }
+
+    .header-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+    .help-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: none;
+      background: #1a73e8;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      line-height: 1;
+      box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .help-btn:hover { background: #185abc; box-shadow: 0 2px 6px rgba(60, 64, 67, 0.4); }
+
+    .help-panel {
+      display: none;
+      background: #fef7e0;
+      border: 1px solid #fde293;
+      border-radius: 8px;
+      color: #8a6d00;
+      font-size: 12px;
+      line-height: 1.6;
+      margin: 10px 16px 0 16px;
+      padding: 12px 14px;
+    }
+    .help-panel b { color: #5f4200; }
+
+    .type-note { font-size: 11px; color: #9aa0a6; margin: 6px 0 0 0; }
+
+    .types-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background: #f8f9fa;
+      height: calc(100% - 76px);
+      padding-bottom: 80px;
+    }
+
+    .type-card {
+      background: #ffffff;
+      border: 1px solid #dadce0;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      padding: 14px;
+      transition: box-shadow 0.2s;
+    }
+
+    .type-card:hover { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+
+    .type-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .type-name { font-weight: 600; font-size: 14px; color: #202124; word-break: break-word; }
+
+    .type-badge {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 16px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .type-template { background: #e8f0fe; color: #1a73e8; }
+    .type-standalone { background: #e6f4ea; color: #137333; }
+    .type-off { background: #f1f3f4; color: #5f6368; }
+
+    .type-meta { font-size: 11px; color: #5f6368; margin-bottom: 8px; }
+
+    .type-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+    .btn-icon {
+      background: #ffffff;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-icon:hover { background: #f1f3f4; }
+
+    .btn-run { background: #1a73e8; color: white; border: none; }
+    .btn-run:hover { background: #185abc; }
+
+    .btn-delete { background: #ffffff; color: #d93025; border: 1px solid #dadce0; }
+    .btn-delete:hover { background: #fce8e6; border-color: #d93025; }
+
+    .btn-toggle { background: #ffffff; color: #1a73e8; border: 1px solid #dadce0; }
+    .btn-toggle:hover { background: #e8f0fe; }
+
+    .empty-state {
+      text-align: center;
+      color: #5f6368;
+      padding: 48px 24px;
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px dashed #dadce0;
+    }
+
+    .empty-state-icon { font-size: 48px; margin-bottom: 16px; }
+
+    .loading-types { text-align: center; padding: 40px; color: #5f6368; }
+
+    .sidebar-footer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 16px;
+      border-top: 1px solid #e8eaed;
+      background: #ffffff;
+      height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .new-type-btn {
+      width: 100%;
+      padding: 12px;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .new-type-btn:hover { background: #04fbbc; color: #1a73e8; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); }
+    .new-type-btn:active { transform: scale(0.97); }
+
+    .error-msg {
+      color: #d93025;
+      background: #fce8e6;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-size: 12px;
+    }
+
+    .status-line { font-size: 11px; color: #5f6368; margin: 8px 0 0 0; }
+  </style>
+</head>
+
+<body>
+  <div class="sidebar-header">
+    <div class="header-row">
+      <h2>📄 DocuPDF Sign</h2>
+      <button class="help-btn" title="What is this?" onclick="toggleHelp()">?</button>
+    </div>
+    <p>E-sign types for this spreadsheet</p>
+    <p style="margin: 8px 0 0 0; font-size: 11px; color: #9aa0a6;">
+      🔒 Data stays in your Google Workspace, nothing stored externally.
+      <a href="https://apps.pwmai.com/privacy-policy/" target="_blank">Privacy Policy</a>
+    </p>
+  </div>
+
+  <div id="helpPanel" class="help-panel">
+    <b>What is an E-sign type?</b><br>
+    A signing workflow for a group of rows — e.g. <i>MOU</i>, <i>Invoice</i>, <i>PO</i>. One sheet can hold many types.<br><br>
+    <b>Buttons on each type</b><br>
+    <b>▶️ Run</b> — check the rows now and create signing jobs.<br>
+    <b>✏️ Edit</b> — change its configuration.<br>
+    <b>⏸ Pause</b> — stop it from running automatically (resume later).<br>
+    <b>📋 Copy</b> — duplicate the type (e.g. for another sheet/rows).<br>
+    <b>📜 Audit</b> — view the audit events recorded for this E-sign.<br>
+    <b>🗑️ Delete</b> — remove the type. Links already written stay intact.<br><br>
+    <b>Scheduling</b><br>
+    Each E-sign has its own schedule, set once in the wizard (Step 6). Pause/Resume switches it on and off. The installable time trigger is created once, automatically.<br><br>
+    <b>How a signature happens</b><br>
+    1. A row is marked <i>Signing Required = Yes</i> (and has a PDF).<br>
+    2. DocuPDF creates the job and writes one-time sign links into the row.<br>
+    3. Signers open their link, draw/type a signature; when all parties sign, the <i>_SIGNED.pdf</i> is saved with an audit stamp.<br>
+    <span style="font-size:11px">For details see the <b>SETUP.md</b> guide or the E-sign wizard's per-step <b>?</b> help.</span>
+  </div>
+
+  <div class="types-container" id="typesList">
+    <div class="loading-types">⏳ Loading E-sign types...</div>
+  </div>
+
+  <div class="sidebar-footer">
+    <button class="new-type-btn" onclick="createNewE()">➕ Create New E-sign</button>
+  </div>
+
+  <script>
+    var lastVersion = '';
+
+    function toggleHelp() {
+      var p = document.getElementById('helpPanel');
+      var showing = p.style.display === 'block';
+      p.style.display = showing ? 'none' : 'block';
+    }
+
+    function copyType(id) {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.ok === false) { alert('Copy failed: ' + res.error); return; }
+          loadTypes();
+        })
+        .withFailureHandler(function (err) { alert('Copy failed: ' + err.message); })
+        .COPY_ESIGN_TYPE(id);
+    }
+
+    function auditType(id) {
+      google.script.run
+        .withSuccessHandler(function () {})
+        .withFailureHandler(function (err) { alert('Audit log: ' + err.message); })
+        .VIEW_TYPE_AUDIT(id);
+    }
+
+    function loadTypes() {
+      var container = document.getElementById('typesList');
+      container.innerHTML = '<div class="loading-types">⏳ Loading E-sign types...</div>';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || res.ok === false) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div>' +
+              '<div>Error loading E-sign types</div><div style="font-size:12px;color:#d93025">' +
+              (res && res.error ? res.error : 'unknown') + '</div>' +
+              '<button onclick="loadTypes()" style="margin-top:12px;padding:8px 16px;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer">🔄 Retry</button></div>';
+            return;
+          }
+          var types = (res.types || []);
+          if (types.length === 0) {
+            container.innerHTML = '<div class="empty-state">' +
+              '<div class="empty-state-icon">📭</div>' +
+              '<div>No E-sign types yet</div>' +
+              '<div style="font-size: 12px; margin-top: 8px;">Click "Create New E-sign" to configure your first one.</div>' +
+              '</div>';
+            return;
+          }
+          var html = '';
+          for (var i = 0; i < types.length; i++) {
+            var t = types[i];
+            var modeBadge = t.mode === 'standalone'
+              ? '<span class="type-badge type-standalone">📄 Standalone</span>'
+              : '<span class="type-badge type-template">🔗 Template PDF</span>';
+            if (t.enabled !== true) {
+              modeBadge += ' <span class="type-badge type-off">Paused</span>';
+            }
+            var schedule = (t.scheduleMinutes > 0)
+              ? (t.scheduleMinutes >= 1440 ? 'every 24h' : t.scheduleMinutes >= 60 ? 'every ' + (t.scheduleMinutes / 60) + 'h' : 'every ' + t.scheduleMinutes + ' min')
+              : 'manual';
+            var safeName = String(t.name || 'Unnamed').replace(/[&<>]/g, function (m) {
+              if (m === '&') return '&amp;';
+              if (m === '<') return '&lt;';
+              if (m === '>') return '&gt;';
+              return m;
+            });
+            var filterTxt = t.filterKeyword ? ' · rows: "' + t.filterKeyword + '"' : '';
+            var isStandalone = t.mode === 'standalone';
+            var runBtn = isStandalone
+              ? '<button class="btn-icon btn-sign" onclick="openInPerson(\'' + t.id + '\')">✍️ Sign a row</button>'
+              : '<button class="btn-icon btn-run" onclick="runType(\'' + t.id + '\')">▶️ Run</button>';
+            html +=
+              '<div class="type-card" data-id="' + t.id + '">' +
+              '<div class="type-header"><span class="type-name">' + safeName + '</span>' + modeBadge + '</div>' +
+              '<div class="type-meta">' + (isStandalone ? 'Manual — pick a row to sign' : 'Schedule: ' + schedule + filterTxt) + '</div>' +
+              '<div class="type-actions">' +
+              '<button class="btn-icon" onclick="editType(\'' + t.id + '\')">✏️ Edit</button>' +
+              runBtn +
+              '<button class="btn-icon btn-toggle" onclick="toggleType(\'' + t.id + '\', ' + (t.enabled === true ? 'false' : 'true') + ')">' + (t.enabled === true ? '⏸ Pause' : '▶ Resume') + '</button>' +
+              '<button class="btn-icon" onclick="copyType(\'' + t.id + '\')">📋 Copy</button>' +
+              '<button class="btn-icon" onclick="auditType(\'' + t.id + '\')">📜 Audit</button>' +
+              '<button class="btn-icon btn-delete" onclick="deleteType(\'' + t.id + '\', \'' + safeName.replace(/'/g, "\\'") + '\')">🗑️ Delete</button>' +
+              '</div></div>';
+          }
+          container.innerHTML = html;
+        })
+        .withFailureHandler(function (err) {
+          container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div>' +
+            '<div>Error loading E-sign types</div><div style="font-size:12px;color:#d93025">' + err.message + '</div>' +
+            '<button onclick="loadTypes()" style="margin-top:12px;padding:8px 16px;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer">🔄 Retry</button></div>';
+        })
+        .GET_ESIGN_TYPES();
+    }
+
+    function createNewE() {
+      google.script.run
+        .withSuccessHandler(function () {})
+        .withFailureHandler(function (err) { alert('Error: ' + err.message); })
+        .OPEN_ESIGN_MODAL('');
+    }
+
+    function editType(id) {
+      google.script.run
+        .withSuccessHandler(function () {})
+        .withFailureHandler(function (err) { alert('Error: ' + err.message); })
+        .OPEN_ESIGN_MODAL(id);
+    }
+
+    function openInPerson(id) {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.ok === false) { alert(res.error); return; }
+          loadTypes();
+        })
+        .withFailureHandler(function (err) { alert('Error: ' + err.message); })
+        .OPEN_IN_PERSON_DIALOG(id);
+    }
+
+    function deleteType(id, name) {
+      if (confirm('Delete E-sign "' + name + '"? Its sign links already written to the sheet stay intact.')) {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res && res.ok === false) { alert(res.error); return; }
+            loadTypes();
+          })
+          .withFailureHandler(function (err) { alert('Error: ' + err.message); })
+          .DELETE_ESIGN_TYPE(id);
+      }
+    }
+
+    function toggleType(id, enable) {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.ok === false) { alert(res.error); return; }
+          loadTypes();
+        })
+        .withFailureHandler(function (err) { alert('Error: ' + err.message); })
+        .TOGGLE_ESIGN_TYPE(id, enable);
+    }
+
+    function runType(id) {
+      var btn = event && event.target;
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Running…'; }
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (btn) { btn.disabled = false; btn.textContent = '▶️ Run'; }
+          if (!res || res.ok === false) { alert('Run failed: ' + (res && res.error ? res.error : 'unknown')); return; }
+          var s = res.stats || {};
+          alert('Sync done for "' + (res.typeName || '') + '":\n' +
+            s.processed + ' processed · ' + s.blocked + ' blocked · ' + s.skipped + ' skipped' +
+            (res.error ? '\n\n' + res.error : ''));
+        })
+        .withFailureHandler(function (err) {
+          if (btn) { btn.disabled = false; btn.textContent = '▶️ Run'; }
+          alert('Error: ' + err.message);
+        })
+        .SYNC_TYPE(id);
+    }
+
+    function checkForServerRefresh() {
+      google.script.run
+        .withSuccessHandler(function (signal) {
+          if (signal && signal !== lastVersion) {
+            lastVersion = signal;
+            loadTypes();
+          }
+        })
+        .withFailureHandler(function () {})
+        .GET_SIDEBAR_REFRESH();
+    }
+
+    window.addEventListener('message', function (event) {
+      if (event.data && event.data.action === 'REFRESH_DOCUPDF_SIDEBAR') {
+        loadTypes();
+      }
+    });
+
+    window.onload = function () {
+      loadTypes();
+      setInterval(checkForServerRefresh, 3000);
+    };
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,102 @@
+<!--
+  file name: HelpDialog.html
+  Simple help dialog opened from the menu (SHOW_HELP) / sidebar "?" buttons.
+-->
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+<base target="_top">
+  <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+  <style>
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      color: #3c4043;
+      margin: 0;
+      padding: 24px;
+      background: #f8f9fa;
+      line-height: 1.6;
+    }
+
+    h1 {
+      font-size: 18px;
+      color: #1a73e8;
+      margin: 0 0 4px 0;
+    }
+
+    h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #5f6368;
+      margin: 22px 0 8px 0;
+    }
+
+    p, li {
+      font-size: 13px;
+      color: #3c4043;
+    }
+
+    ul { margin: 6px 0 0 0; padding-left: 20px; }
+
+    .tip {
+      background: #e8f0fe;
+      border-left: 4px solid #1a73e8;
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #1a73e8;
+      margin-top: 18px;
+    }
+
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 10px 18px;
+      background: #1a73e8;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn:hover { background: #185abc; }
+  </style>
+</head>
+
+<body>
+  <h1>📄 DocuPDF Sign</h1>
+  <p>Signs existing PDFs (invoices, MOUs) by overlaying signer signatures and an audit stamp, then writes one-time sign links back into your sheet.</p>
+
+  <h2>How a signature happens</h2>
+  <ul>
+    <li>Mark a row <b>Signing Required = Yes</b> and make sure it has a PDF (template-merged, or a Drive link/id in <i>Source Doc ID/URL</i>).</li>
+    <li>DocuPDF creates the signing job and writes one-time, 7-day <b>Sign Link - Party A/B</b> into the row.</li>
+    <li>Each signer opens their link (no Google account needed), draws or types a signature.</li>
+    <li>When all parties have signed, the <b>_SIGNED.pdf</b> is saved to your signed-PDFs folder with an audit stamp (signers, timestamp, SHA-256 hash, QR).</li>
+  </ul>
+
+  <h2>Menu items</h2>
+  <ul>
+    <li><b>Open E-sign Engine</b> — the sidebar listing your E-sign types.</li>
+    <li><b>Create New E-sign</b> — open the configuration wizard directly.</li>
+    <li><b>Setup Sheet (columns)</b> — create/map the columns DocuPDF needs (run once).</li>
+    <li><b>Enable / Disable Auto-sync</b> — turn the scheduled scanning on or off.</li>
+    <li><b>Auto-sync Status</b> — see whether scanning is active.</li>
+    <li><b>View Audit Logs</b> — every event is recorded on the AuditLog sheet.</li>
+  </ul>
+
+  <h2>What is an E-sign type?</h2>
+  <p>A signing workflow for a group of rows — e.g. <i>MOU</i>, <i>Invoice</i>, <i>PO</i>. One sheet can hold many types, each with its own rows, signers and schedule. The wizard detects the source mode automatically:</p>
+  <ul>
+    <li><b>Template-based signing</b> — sheet has <i>Source PDF</i> / <i>Recipient Email</i> columns. DocuPDF writes links; the system sends the email.</li>
+    <li><b>Standalone</b> — no sheet columns. DocuPDF emails signers itself.</li>
+  </ul>
+
+  <div class="tip">🔒 Data stays inside your Google Workspace. Nothing is stored externally. Each sign link is single-use and expires after 7 days.</div>
+
+  <button class="btn" onclick="google.script.host.close()">Close</button>
+</body>
+
+</html>

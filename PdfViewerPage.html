@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Document preview</title>
+  <style>
+    body { margin: 0; padding: 0; background: #f1f3f4; font-family: Arial, sans-serif; }
+    #bar {
+      padding: 10px 14px; background: #fff; border-bottom: 1px solid #dadce0;
+      font-size: 13px; color: #3c4043;
+    }
+    #bar strong { color: #202124; }
+    #pdfViewerContainer {
+      padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .page {
+      position: relative; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .28);
+      flex: 0 0 auto;
+    }
+    .page canvas { display: block; width: 100%; height: 100%; }
+    .note { padding: 14px; color: #5f6368; font-size: 12px; line-height: 1.5; text-align: center; }
+    .note.err { color: #b26a00; }
+    .detail { padding: 0 14px 14px; color: #80868b; font-size: 10px; font-family: monospace;
+      word-break: break-all; text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="bar">📄 <strong id="docName">Document</strong> — read-only preview</div>
+  <div id="pdfViewerContainer"><div id="pdfLoading" class="note">Loading document&hellip;</div></div>
+
+  <script>
+    // Injected by _servePdf (Code.gs): { docName, pdfB64 }
+    window.__PDF_PAGE__ = window.__PDF_PAGE__ || {};
+  </script>
+
+  <script type="module">
+    var PDFJS_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/';
+
+    function base64ToUint8Array(b64) {
+      var bin = atob(b64);
+      var arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return arr;
+    }
+
+    function box() { return document.getElementById('pdfViewerContainer'); }
+
+    function clearLoading() {
+      var l = document.getElementById('pdfLoading');
+      if (l && l.parentNode) { l.parentNode.removeChild(l); }
+    }
+
+    function showNote(msg, cls) {
+      var b = box();
+      if (!b) { return; }
+      b.innerHTML = '';
+      var d = document.createElement('div');
+      d.className = 'note ' + (cls || '');
+      d.textContent = msg;
+      b.appendChild(d);
+      return d;
+    }
+
+    function showError(msg, detail) {
+      var d = showNote(msg, 'err');
+      if (d && detail) {
+        var s = document.createElement('div');
+        s.className = 'detail';
+        s.textContent = detail;
+        box().appendChild(s);
+      }
+    }
+
+    function render() {
+      var data = window.__PDF_PAGE__ || {};
+      var b = box();
+      if (!b) { return; }
+      if (!data.pdfB64) {
+        showError('This document could not be loaded for preview.');
+        return;
+      }
+      var step = 'import';
+      var pdfjsLib;
+      import(PDFJS_BASE + 'pdf.min.mjs')
+        .then(function (lib) {
+          pdfjsLib = lib;
+          return import(PDFJS_BASE + 'pdf.worker.min.mjs').catch(function (e) {
+            console.warn('[PDFVIEW] worker module import failed; continuing', e);
+          });
+        })
+        .then(function () {
+          step = 'getDocument';
+          return pdfjsLib.getDocument({ data: base64ToUint8Array(data.pdfB64) }).promise;
+        })
+        .then(function (pdf) {
+          step = 'layout';
+          return pdf.getPage(1).then(function (p1) {
+            var vp = p1.getViewport({ scale: 1 });
+            var avail = Math.min(window.innerWidth || 900, 1100) - 40;
+            var scale = Math.max(0.3, Math.min(2, avail / vp.width));
+            var pages = [];
+            for (var i = 1; i <= pdf.numPages; i++) {
+              var holder = document.createElement('div');
+              holder.className = 'page';
+              var canvas = document.createElement('canvas');
+              holder.appendChild(canvas);
+              b.appendChild(holder);
+              pages.push({ page: null, pagePromise: pdf.getPage(i), holder: holder, canvas: canvas, state: 'idle' });
+            }
+            window.__PDFVIEW_PAGES__ = pdf.numPages;
+            return renderPage(pages, 0, scale);
+          });
+        })
+        .then(function () {
+          window.__PDFVIEW_STEP__ = 'ready';
+          console.log('[PDFVIEW] ready:', window.__PDFVIEW_PAGES__, 'page(s)');
+        })
+        .catch(function (e) {
+          var msg = String((e && e.message) || e);
+          window.__PDFVIEW_STEP__ = step;
+          console.warn('[PDFVIEW] failed at step "' + step + '":', e);
+          showError('This document could not be displayed. Please download it from the email you received and open it in a PDF viewer.', 'step=' + step + ' · ' + msg);
+        });
+    }
+
+    function renderPage(pages, index, scale) {
+      var page = pages[index];
+      if (!page || page.state === 'rendered') { return Promise.resolve(); }
+      page.state = 'rendered';
+      var dpr = window.devicePixelRatio || 1;
+      return page.pagePromise.then(function (pdfPage) {
+        page.page = pdfPage;
+        var vp = pdfPage.getViewport({ scale: scale });
+        page.holder.style.width = Math.round(vp.width) + 'px';
+        page.holder.style.height = Math.round(vp.height) + 'px';
+        page.canvas.width = Math.round(vp.width * dpr);
+        page.canvas.height = Math.round(vp.height * dpr);
+        var ctx = page.canvas.getContext('2d');
+        if (!ctx) { throw new Error('canvas 2d context unavailable'); }
+        return pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
+      }).then(function () {
+        clearLoading();
+      }).catch(function (e) {
+        page.state = 'error';
+        console.warn('[PDFVIEW] render failed for page ' + (index + 1), e);
+      });
+    }
+
+    if (document.readyState === 'complete') {
+      render();
+    } else {
+      window.addEventListener('load', render);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# Exclude non-script files from push
+node_modules/**
+vendor/package.json
+vendor/package-lock.json
+*.log
+.DS_Store
+Thumbs.db
+.git/**
+*.clasp.json

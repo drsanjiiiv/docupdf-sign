@@ -1,0 +1,39 @@
+{
+  "timeZone": "Asia/Kolkata",
+  "dependencies": {},
+  "exceptionLogging": "CLOUD",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/spreadsheets.currentonly",
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/script.container.ui",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.scriptapp"
+  ],
+  "urlFetchWhitelist": [
+    "https://quickchart.io/",
+    "https://www.googleapis.com/"
+  ],
+  "webapp": {
+    "access": "ANYONE_ANONYMOUS",
+    "executeAs": "USER_DEPLOYING"
+  },
+  "addOns": {
+    "common": {
+      "name": "DocuPDF Sign",
+      "logoUrl": "https://apps.pwmai.com/wp-content/uploads/docupdf-sign-pro-logo.png",
+      "useLocaleFromApp": true,
+      "homepageTrigger": {
+        "runFunction": "ON_HOMEPAGE",
+        "enabled": true
+      }
+    },
+    "sheets": {
+      "homepageTrigger": {
+        "runFunction": "ON_SHEETS_HOMEPAGE"
+      }
+    }
+  }
+}

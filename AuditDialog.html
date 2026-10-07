@@ -1,0 +1,127 @@
+<!--
+  file name: AuditDialog.html
+  Per-E-sign audit log modal. Receives rows via window.__AUDIT__ (set by
+  VIEW_TYPE_AUDIT) and renders them in a simple table.
+-->
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+<base target="_top">
+  <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+  <style>
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      color: #3c4043;
+      margin: 0;
+      padding: 20px 24px;
+      background: #f8f9fa;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      font-size: 16px;
+      color: #1a73e8;
+      margin: 0 0 4px 0;
+    }
+
+    p { margin: 0 0 14px 0; font-size: 12px; color: #5f6368; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #ffffff;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 12px;
+    }
+
+    th {
+      background: #f1f3f4;
+      text-align: left;
+      padding: 8px 10px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #5f6368;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 7px 10px;
+      border-top: 1px solid #f1f3f4;
+      vertical-align: top;
+    }
+
+    tr:hover td { background: #f8f9fa; }
+
+    .empty {
+      text-align: center;
+      color: #5f6368;
+      padding: 40px 16px;
+      background: #ffffff;
+      border: 1px dashed #dadce0;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .btn {
+      display: inline-block;
+      margin-top: 18px;
+      padding: 9px 18px;
+      background: #1a73e8;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn:hover { background: #185abc; }
+  </style>
+</head>
+
+<body>
+  <h1>📜 Audit Log</h1>
+  <p id="subtitle"></p>
+
+  <div id="tableWrap"></div>
+  <button class="btn" onclick="google.script.host.close()">Close</button>
+
+  <script>
+    var data = window.__AUDIT__ || {};
+    var rows = data.rows || [];
+    var title = document.getElementById('subtitle');
+    title.textContent = data.typeName
+      ? 'Events for E-sign "' + data.typeName + '"'
+      : 'All recent events';
+
+    if (data.error) {
+      document.getElementById('tableWrap').innerHTML =
+        '<div class="empty">Could not load the audit log: ' + data.error + '</div>';
+    } else if (rows.length === 0) {
+      document.getElementById('tableWrap').innerHTML =
+        '<div class="empty">No audit events recorded yet.</div>';
+    } else {
+      var html = '<table><tr><th>Timestamp</th><th>Event</th><th>Document</th><th>Signer</th><th>Status</th><th>Details</th></tr>';
+      var fmt = function (v) {
+        if (!v) return '';
+        if (v instanceof Date) {
+          try { return v.toLocaleString(); } catch (e) { return String(v); }
+        }
+        return String(v);
+      };
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var ts = fmt(r[0]);
+        html += '<tr><td>' + ts + '</td><td><b>' + fmt(r[1]) + '</b></td><td>' + fmt(r[3]) +
+          '</td><td>' + fmt(r[5]) + '</td><td>' + fmt(r[6]) + '</td><td>' + fmt(r[7]) + '</td></tr>';
+      }
+      html += '</table>';
+      document.getElementById('tableWrap').innerHTML = html;
+    }
+  </script>
+</body>
+
+</html>

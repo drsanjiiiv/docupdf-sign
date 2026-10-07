@@ -1,0 +1,641 @@
+<!--
+  file name: SignatureModal.html
+  Signer modal: draw / type / clear signature on a mobile-responsive canvas.
+  Exports a fixed 480x160 PNG frame (PLAN.md 0b-C). Used both in the owner
+  sidebar flow and the token-gated web-app flow (execute-as-ME).
+-->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+<base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <?!= include('CSS_JS_Bundle'); ?>
+  <style>
+    .pw-app { max-width: 760px; }
+    body { max-width: 760px; margin: 0 auto; padding: 12px; }
+    .pw-parties { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .pw-party {
+      flex: 1 1 280px;
+      background: var(--pw-surface);
+      border: 1px solid var(--pw-border);
+      border-radius: var(--pw-radius);
+      padding: 14px;
+    }
+    .pw-party.active { border-color: var(--pw-blue); box-shadow: 0 0 0 2px rgba(26, 115, 232, .18); }
+    .pw-party-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    .pw-party-name { font-size: 14px; font-weight: 600; color: var(--pw-text); }
+    .pw-party-desig { font-weight: 400; color: var(--pw-muted); font-size: 12px; }
+    .pw-party-email { font-size: 12px; color: var(--pw-muted); margin: 2px 0 10px; }
+    .pw-lock {
+      border: 1px dashed var(--pw-border);
+      border-radius: 6px;
+      background: #f1f3f4;
+      color: #80868b;
+      font-size: 12px;
+      text-align: center;
+      padding: 22px 10px;
+    }
+    .pw-chip { display: inline-block; font-size: 11px; padding: 3px 10px; border-radius: 12px; white-space: nowrap; }
+    .pw-chip-blue { background: #e8f0fe; color: var(--pw-blue); }
+    .pw-chip-green { background: #e6f4ea; color: var(--pw-green); }
+    .pw-chip-gray { background: #f1f3f4; color: #80868b; }
+  </style>
+</head>
+<body>
+  <div class="pw-card">
+    <div id="brandRow" style="display:none;text-align:center;margin-bottom:10px">
+      <img id="brandLogo" alt="Brand" style="max-height:56px;max-width:240px">
+    </div>
+    <h1 class="pw-title" id="brandTitle">Sign Document</h1>
+    <p id="docNameLabel" class="pw-subtitle">DocuPDF Sign</p>
+  </div>
+
+<div id="previewCard" class="pw-card" style="padding:20px;margin-bottom:16px">
+    <div style="display:flex;align-items:flex-start;gap:12px">
+      <div style="font-size:28px;line-height:1">📄</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:15px;margin-bottom:6px">Before you sign</div>
+        <p style="margin:0 0 10px;color:#3c4043;font-size:13px;line-height:1.5">
+          Please review the document below and confirm where your signature will appear.
+        </p>
+        <div id="pdfViewerContainer" style="max-height:min(60vh,520px);overflow:auto;border:1px solid #dadce0;border-radius:8px;background:#f1f3f4;padding:8px;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <div id="pdfLoading" style="padding:16px;color:#5f6368;font-size:12px;text-align:center">Loading document&hellip;</div>
+        </div>
+        <p style="margin:10px 0 0;color:#5f6368;font-size:11px;line-height:1.4">
+          If the sender emailed you the request, the document is attached to that email. If the preview above doesn't load, please check your inbox and review the document there before signing.
+        </p>
+        <p style="margin:10px 0 10px;color:#3c4043;font-size:13px;line-height:1.5">
+          Your signature is recorded immediately and sent to the sender. Once everyone has signed, the signed copy is issued to the document owner.
+        </p>
+        <p style="margin:0 0 12px;color:#5f6368;font-size:12px">
+          Document: <span id="docNameInline">—</span>
+        </p>
+        <a id="openDocBtn" href="#" target="_blank" rel="noopener" style="color:#1a73e8;font-size:12px;text-decoration:underline">
+          Open in a new tab
+        </a>
+        <p id="openDocFallback" style="display:none;margin:10px 0 0;font-size:11px;color:#5f6368;line-height:1.4">
+          If the button doesn't open the document, copy this link and paste it into a new browser tab:<br>
+          <span id="openDocUrl" style="word-break:break-all;color:#1a73e8;font-family:monospace;font-size:10px"></span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div id="errorBox" class="pw-error"></div>
+  <div id="successBox" class="pw-success"></div>
+
+  <div id="partiesRow" class="pw-parties"></div>
+
+  <div class="pw-card">
+    <button id="btnSubmit" class="pw-btn block" onclick="submitSignature()">Sign &amp; Finalize</button>
+    <div style="height:8px"></div>
+    <button id="btnDecline" class="pw-btn block" style="background:#d93025;color:#ffd54f;border:1px solid #b0261f" onclick="decline()">Decline to sign</button>
+    <div id="declineBox" style="display:none;border:1px solid #f2c4b8;border-radius:8px;background:#fdf2f0;padding:12px;margin-top:10px">
+      <label for="declineReason" style="display:block;font-weight:600;color:#b0261f;margin-bottom:6px">Reason for declining (required)</label>
+      <textarea id="declineReason" class="pw-input" rows="3" maxlength="500" style="width:100%;resize:vertical;box-sizing:border-box" placeholder="Tell the sender why you are declining…"></textarea>
+      <div class="pw-help">The reason is shared with the document owner (500 characters max).</div>
+      <div style="height:8px"></div>
+      <button id="btnDeclineConfirm" class="pw-btn block" style="background:#d93025;color:#ffd54f;border:1px solid #b0261f" onclick="confirmDecline()">Confirm decline</button>
+      <div style="height:8px"></div>
+      <button id="btnDeclineCancel" class="pw-btn block" onclick="cancelDecline()">Keep signing</button>
+    </div>
+  </div>
+
+<div class="pw-footer">🔒 Your signature is applied by the document owner and recorded in the audit log.</div>
+
+  <script type="module">
+    window.__PDFJS_PROBE_STARTED__ = true;
+
+    var PDFJS_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/';
+
+    function base64ToUint8Array(b64) {
+      var bin = atob(b64);
+      var arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return arr;
+    }
+
+    var viewer = { scale: 1, pages: [], io: null };
+
+    function viewerEl(id) {
+      return document.getElementById(id);
+    }
+
+    function clearLoading() {
+      var l = viewerEl('pdfLoading');
+      if (l && l.parentNode) { l.parentNode.removeChild(l); }
+    }
+
+    function viewerMessage(msg, color) {
+      var box = viewerEl('pdfViewerContainer');
+      if (!box) { return; }
+      box.innerHTML = '';
+      var d = document.createElement('div');
+      d.style.cssText = 'padding:16px;font-size:12px;line-height:1.5;text-align:center;color:' + (color || '#5f6368');
+      d.textContent = msg;
+      box.appendChild(d);
+    }
+
+    function renderPage(index) {
+      var page = viewer.pages[index];
+      if (!page || page.state === 'rendering' || page.state === 'rendered') { return Promise.resolve(); }
+      page.state = 'rendering';
+      var canvas = viewerEl('pdfPage_' + index);
+      var holder = page.holder;
+      var dpr = window.devicePixelRatio || 1;
+      return page.pagePromise.then(function (pdfPage) {
+        page.page = pdfPage;
+        var vp = pdfPage.getViewport({ scale: viewer.scale });
+        holder.style.width = Math.round(vp.width) + 'px';
+        holder.style.height = Math.round(vp.height) + 'px';
+        canvas.width = Math.round(vp.width * dpr);
+        canvas.height = Math.round(vp.height * dpr);
+        var ctx = canvas.getContext('2d');
+        if (!ctx) { throw new Error('canvas 2d context unavailable'); }
+        return pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
+      }).then(function () {
+        page.state = 'rendered';
+        clearLoading();
+      }).catch(function (e) {
+        page.state = 'error';
+        console.warn('[PDFJS] render failed for page ' + (index + 1), e);
+      });
+    }
+
+    function releasePage(index) {
+      var page = viewer.pages[index];
+      if (!page || page.state !== 'rendered') { return; }
+      var canvas = viewerEl('pdfPage_' + index);
+      if (canvas) {
+        var ctx = canvas.getContext('2d');
+        if (ctx) { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+      }
+      page.state = 'idle';
+    }
+
+    function observePages() {
+      var box = viewerEl('pdfViewerContainer');
+      if (viewer.io) { viewer.io.disconnect(); }
+      viewer.io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          var idx = Number(en.target.getAttribute('data-page-index'));
+          if (en.isIntersecting) {
+            renderPage(idx);
+          } else {
+            releasePage(idx);
+          }
+        });
+      }, { root: box, rootMargin: '600% 0px', threshold: 0 });
+      viewer.pages.forEach(function (p) { viewer.io.observe(p.holder); });
+    }
+
+    function initPdfViewer() {
+      var box = viewerEl('pdfViewerContainer');
+      if (!box) { return; }
+      var data = window.__SIGN__ || window.__INIT__ || null;
+      if (!data || !data.pdfB64) {
+        box.style.display = 'none';
+        clearLoading();
+        return;
+      }
+      var pdfjsLib;
+      window.__PDFJS_STEP__ = 'import';
+      import(PDFJS_BASE + 'pdf.min.mjs')
+        .then(function (lib) {
+          pdfjsLib = lib;
+          return import(PDFJS_BASE + 'pdf.worker.min.mjs').catch(function (e) {
+            window.__PDFJS_WORKER_IMPORT__ = String((e && e.message) || e);
+            console.warn('[PDFJS] worker module import failed; continuing', e);
+          });
+        })
+        .then(function () {
+          window.__PDFJS_STEP__ = 'getDocument';
+          return pdfjsLib.getDocument({ data: base64ToUint8Array(data.pdfB64) }).promise;
+        })
+        .then(function (pdf) {
+          window.__PDFJS_STEP__ = 'layout';
+          return pdf.getPage(1).then(function (p1) {
+            var vp = p1.getViewport({ scale: 1 });
+            var avail = (box.clientWidth || 640) - 20;
+            viewer.scale = Math.max(0.35, Math.min(1.5, avail / vp.width));
+            for (var i = 1; i <= pdf.numPages; i++) {
+              var holder = document.createElement('div');
+              holder.setAttribute('data-page-index', String(i - 1));
+              holder.style.cssText = 'position:relative;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);flex:0 0 auto';
+              var canvas = document.createElement('canvas');
+              canvas.id = 'pdfPage_' + (i - 1);
+              canvas.style.cssText = 'display:block;width:100%;height:100%';
+              holder.appendChild(canvas);
+              box.appendChild(holder);
+              viewer.pages.push({
+                page: null,
+                pagePromise: pdf.getPage(i),
+                holder: holder,
+                state: 'idle'
+              });
+            }
+            window.__PDFJS_PAGES__ = pdf.numPages;
+            return pdf;
+          });
+        })
+        .then(function (pdf) {
+          if (!pdf.numPages) {
+            viewerMessage('This document has no pages to preview. Please use the "Open in a new tab" link below, or check your email for the attached document.');
+            return null;
+          }
+          window.__PDFJS_STEP__ = 'render';
+          observePages();
+          return renderPage(0);
+        })
+        .then(function () {
+          window.__PDFJS_STEP__ = 'ready';
+          window.__PDFJS_PROBE__ = {
+            ok: true,
+            pages: viewer.pages.length,
+            worker: (typeof globalThis.pdfjsWorker !== 'undefined') ? 'main-thread' : 'unknown'
+          };
+          console.log('[PDFJS] viewer ready:', viewer.pages.length, 'page(s); main-thread worker:',
+            typeof globalThis.pdfjsWorker !== 'undefined');
+        })
+        .catch(function (e) {
+          window.__PDFJS_PROBE__ = {
+            ok: false,
+            step: window.__PDFJS_STEP__ || 'unknown',
+            error: String((e && e.message) || e)
+          };
+          console.warn('[PDFJS] viewer failed at step "' + window.__PDFJS_STEP__ + '":', e);
+          viewerMessage('Preview could not be loaded. Please use the "Open in a new tab" link below, or check your email for the attached document.', '#b26a00');
+          var box = viewerEl('pdfViewerContainer');
+          if (box) {
+            var detail = document.createElement('div');
+            detail.style.cssText = 'padding:0 12px 12px;font-size:10px;color:#80868b;word-break:break-all;font-family:monospace';
+            detail.textContent = 'step=' + (window.__PDFJS_STEP__ || '?') + ' · ' + ((e && e.message) || e);
+            box.appendChild(detail);
+          }
+        });
+    }
+
+    if (document.readyState === 'complete') {
+      initPdfViewer();
+    } else {
+      window.addEventListener('load', initPdfViewer);
+    }
+  </script>
+
+  <script>
+    var S = PWAI;
+    var canvas, ctx, drawing = false;
+
+    // init data set by doGet (token-gated web app) — { serviceUrl, jobId, signToken, nonce, slotLabel, signerEmail, docName, previewUrl }
+    var INIT = {};
+
+/**
+     * Signs/declines by navigating (window.location) to a GET route. Anonymous
+     * Apps Script sessions do NOT propagate to fetch()/XHR (each fetch returns
+     * the session interstitial page), while top-level navigations complete the
+     * anonymous handshake reliably. The server renders an HTML result page.
+     */
+    function buildActionUrl(payload) {
+      var qs = [];
+      for (var k in payload) {
+        if (payload[k] === undefined || payload[k] === null) { continue; }
+        qs.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(payload[k])));
+      }
+      return INIT.serviceUrl + '?' + qs.join('&');
+    }
+
+    /**
+     * The modal is served inside Google's sandboxed iframe
+     * (script.googleusercontent.com), so `window.location.href` only navigates
+     * the IFRAME — anonymous sessions do not complete for sub-frame /exec
+     * requests and Google renders its "unable to open the file" error. The
+     * sandbox allows top-level navigation on user activation, so use
+     * window.top to leave the iframe and complete the anonymous handshake.
+     */
+    function navigateTop(url) {
+      try {
+        if (window.top && window.top !== window) {
+          window.top.location.href = url;
+          return;
+        }
+      } catch (err) { /* cross-origin guard: fall back below */ }
+      window.location.href = url;
+    }
+
+    /**
+     * Minimal preview hook: shows the document name and opens the source PDF
+     * in a new tab via the server-rendered preview URL (top-level navigation
+     * completes the anonymous session handshake reliably).
+     */
+    function loadPreview() {
+      var docNameEl = document.getElementById('docNameInline');
+      if (docNameEl) { docNameEl.textContent = INIT.docName || 'the document'; }
+
+      var btn = document.getElementById('openDocBtn');
+      var fallback = document.getElementById('openDocFallback');
+      var urlSpan = document.getElementById('openDocUrl');
+
+      if (!btn) { return; }
+
+      if (!INIT.previewUrl) {
+        btn.removeAttribute('href');
+        btn.textContent = 'Document unavailable';
+        btn.style.opacity = '0.5';
+        btn.style.pointerEvents = 'none';
+        if (fallback) { fallback.style.display = 'none'; }
+        return;
+      }
+
+      btn.href = INIT.previewUrl;
+      if (fallback) { fallback.style.display = 'block'; }
+      if (urlSpan) { urlSpan.textContent = INIT.previewUrl; }
+    }
+
+    /**
+     * Renders one card per party (Party A left, Party B right). The current
+     * signer's card is active and holds the signature canvas; the other party's
+     * block stays locked (or shows "Signed" once recorded).
+     */
+    function renderParties() {
+      var row = document.getElementById('partiesRow');
+      var slots = INIT.slots || [];
+      if (!slots.length) { return; }
+      var html = '';
+      slots.forEach(function (sl) {
+        var chip;
+        var lockBody = '';
+        if (sl.signed) {
+          chip = '<span class="pw-chip pw-chip-green">Signed ✓</span>';
+          lockBody = '<div class="pw-lock">Signature recorded.</div>';
+        } else if (sl.current) {
+          chip = '<span class="pw-chip pw-chip-blue">Signing now</span>';
+        } else {
+          chip = '<span class="pw-chip pw-chip-gray">Locked</span>';
+          lockBody = '<div class="pw-lock">🔒 Signature block locked — this party signs after the previous one.</div>';
+        }
+        html +=
+          '<div class="pw-party' + (sl.current ? ' active' : '') + '">' +
+            '<div class="pw-party-head"><span class="pw-badge">' + S.esc(sl.label || 'Signer') + '</span>' + chip + '</div>' +
+            '<div class="pw-party-name">' + S.esc(sl.signerName || 'Not provided') +
+              (sl.signerDesignation ? ' <span class="pw-party-desig">' + S.esc(sl.signerDesignation) + '</span>' : '') +
+            '</div>' +
+            '<div class="pw-party-email">' + S.esc(sl.signerEmail || '') + '</div>' +
+            '<div class="pw-party-sig">' + lockBody + '</div>' +
+          '</div>';
+      });
+      row.innerHTML = html;
+      renderActiveSignature();
+    }
+
+function renderActiveSignature() {
+      var zone = document.querySelector('.pw-party.active .pw-party-sig');
+      var submitBtn = document.getElementById('btnSubmit');
+      var declineBtn = document.getElementById('btnDecline');
+      if (!zone) {
+        // No active party card rendered (e.g. INIT.slots empty/absent). Build a
+        // fallback signing zone so the signature pad always exists and the
+        // buttons stay usable — never strand the signer with a dead button.
+        var row = document.getElementById('partiesRow');
+        if (row) {
+          row.innerHTML =
+            '<div class="pw-party active">' +
+              '<div class="pw-party-head"><span class="pw-badge">' + S.esc(INIT.slotLabel || 'Signer') + '</span>' +
+              '<span class="pw-chip pw-chip-blue">Signing now</span></div>' +
+              '<div class="pw-party-name">' + S.esc(INIT.signerName || 'Not provided') + '</div>' +
+              '<div class="pw-party-email">' + S.esc(INIT.signerEmail || '') + '</div>' +
+              '<div class="pw-party-sig"></div>' +
+            '</div>';
+          zone = row.querySelector('.pw-party-sig');
+        }
+      }
+      if (!zone) {
+        if (submitBtn) { submitBtn.disabled = true; }
+        if (declineBtn) { declineBtn.disabled = true; }
+        return;
+      }
+      if (submitBtn) { submitBtn.disabled = false; }
+      if (declineBtn) { declineBtn.disabled = false; }
+      zone.innerHTML =
+        '<div class="pw-help" style="margin:0 0 6px">Draw with your finger or mouse inside the box.</div>' +
+        '<canvas id="sigCanvas" width="480" height="160" style="width:100%;height:auto;border:1px dashed var(--pw-border);border-radius:6px;background:#fff;touch-action:none;cursor:crosshair"></canvas>' +
+        '<div class="pw-section" style="margin:12px 0 4px">Or type your name</div>' +
+        '<input id="sigText" class="pw-input" type="text" placeholder="Type your full name" autocomplete="off">' +
+        '<div class="pw-row" style="margin-top:10px">' +
+          '<div><button id="btnType" class="pw-btn ghost block" onclick="useTyped()">Use typed name</button></div>' +
+          '<div><button id="btnClear" class="pw-btn ghost block" onclick="clearSig()">Clear</button></div>' +
+        '</div>' +
+        '<div id="textFieldWrap" style="display:none">' +
+          '<label id="textFieldLabel" class="pw-help" style="display:block;margin-top:10px"></label>' +
+          '<input id="sigTextField" class="pw-input" type="text" autocomplete="off">' +
+        '</div>' +
+        '<div id="initialsWrap" class="pw-row" style="display:none;margin-top:10px">' +
+          '<label class="pw-help" for="sigInitials" style="flex:1;align-self:center">Initials (optional)</label>' +
+          '<input id="sigInitials" class="pw-input" type="text" maxlength="8" placeholder="e.g., AB" style="flex:1" autocomplete="off">' +
+        '</div>';
+    }
+
+window.onload = function () {
+      INIT = window.__SIGN__ || window.__INIT__ || {};
+      // version marker so a stale userCodeAppPanel cache is detectable in
+      // console / view-source (reported "267:53" did not match current JS)
+      window.__DOCUPDF_VER__ = 'v26.2';
+
+      renderParties();
+      // Guarantee the signature pad always exists, even if INIT.slots is
+      // empty/absent — otherwise btnSubmit/btnDecline stay enabled while
+      // sigText/sigTextField/sigInitials are missing, and submitSignature()
+      // throws "Cannot read properties of null (reading 'value')".
+      if (!INIT.slots || !INIT.slots.length) {
+        renderActiveSignature();
+      }
+
+      canvas = document.getElementById('sigCanvas');
+      if (canvas) {
+        ctx = canvas.getContext('2d');
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#202124';
+        canvas.addEventListener('pointerdown', startDraw);
+        canvas.addEventListener('pointermove', draw);
+        canvas.addEventListener('pointerup', endDraw);
+        canvas.addEventListener('pointerleave', endDraw);
+      }
+
+      if (INIT.docName) { document.getElementById('docNameLabel').textContent = INIT.docName; }
+
+      if (INIT.brandColor) {
+        var submitBtn = document.getElementById('btnSubmit');
+        if (submitBtn) { submitBtn.style.background = INIT.brandColor; }
+        var title = document.getElementById('brandTitle');
+        if (title) { title.style.color = INIT.brandColor; }
+      }
+      if (INIT.logoUrl && /^https?:\/\//.test(INIT.logoUrl)) {
+        document.getElementById('brandLogo').src = INIT.logoUrl;
+        document.getElementById('brandRow').style.display = '';
+      }
+      if (INIT.textFieldLabel) {
+        document.getElementById('textFieldLabel').textContent = INIT.textFieldLabel;
+        document.getElementById('textFieldWrap').style.display = '';
+      }
+      if (INIT.initialsEnabled !== false) {
+        document.getElementById('initialsWrap').style.display = '';
+      }
+
+      loadPreview();
+    };
+
+    function startDraw(e) {
+      drawing = true;
+      ctx.beginPath();
+      ctx.moveTo(offsetX(e), offsetY(e));
+      e.preventDefault();
+    }
+
+    function draw(e) {
+      if (!drawing) { return; }
+      ctx.lineTo(offsetX(e), offsetY(e));
+      ctx.stroke();
+      e.preventDefault();
+    }
+
+    function endDraw(e) {
+      drawing = false;
+      e.preventDefault();
+    }
+
+    function offsetX(e) {
+      var r = canvas.getBoundingClientRect();
+      return (e.clientX - r.left) * (canvas.width / r.width);
+    }
+
+    function offsetY(e) {
+      var r = canvas.getBoundingClientRect();
+      return (e.clientY - r.top) * (canvas.height / r.height);
+    }
+
+    function clearSig() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function useTyped() {
+      var name = document.getElementById('sigText').value.trim();
+      if (!name) { S.showError('Type a name first.'); return; }
+      clearSig();
+      ctx.font = '44px "Great Vibes", "Brush Script MT", cursive, sans-serif';
+      ctx.fillStyle = '#202124';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(name, canvas.width / 2, canvas.height / 2 + 4, canvas.width - 24);
+    }
+
+function isEmptyCanvas() {
+      return ctx.getImageData(0, 0, canvas.width, canvas.height).data.every(function (v) { return v === 0; });
+    }
+
+    /**
+     * Google's /exec frontend rejects GET URLs beyond ~16-17K characters (HTTP
+     * 400 -> "Sorry, unable to open the file at present"). A full-res 480x160
+     * signature PNG (especially a typed name) can exceed that after URL
+     * encoding. Downscale to a small fixed width and return a compact base64
+     * (no `data:` prefix; the server strips it anyway). Signatures are stamped
+     * at ~180x60pt, so 240px-wide source is ample.
+     */
+    function compactSignature() {
+      var MAX_W = 240;
+      var src = canvas;
+      var scale = Math.min(1, MAX_W / src.width);
+      var w = Math.max(1, Math.round(src.width * scale));
+      var h = Math.max(1, Math.round(src.height * scale));
+      var tmp = document.createElement('canvas');
+      tmp.width = w; tmp.height = h;
+      var tctx = tmp.getContext('2d');
+      tctx.fillStyle = '#fff';
+      tctx.fillRect(0, 0, w, h);
+      tctx.drawImage(src, 0, 0, w, h);
+      var b64 = tmp.toDataURL('image/png');
+      if (b64.indexOf('base64,') !== -1) { b64 = b64.substring(b64.indexOf('base64,') + 7); }
+      return { base64: b64, width: w, height: h };
+    }
+
+function submitSignature() {
+      S.hideError(); S.hideSuccess();
+      var sigTextEl = document.getElementById('sigText');
+      var sigTextFieldEl = document.getElementById('sigTextField');
+      var sigInitialsEl = document.getElementById('sigInitials');
+      if (!sigTextEl || !canvas) {
+        S.showError('The signature area failed to load. Please refresh the page and try again.');
+        return;
+      }
+      var typed = sigTextEl.value.trim();
+      if (isEmptyCanvas() && !typed) { S.showError('Please draw or type your signature.'); return; }
+      if (typed && isEmptyCanvas()) { useTyped(); }
+
+      var payload = {
+        action: 'sign',
+        jobId: INIT.jobId,
+        signToken: INIT.signToken || '',
+        nonce: INIT.nonce || '',
+        base64: '',
+        width: canvas.width,
+        height: canvas.height,
+        signerEmail: INIT.signerEmail || '',
+        signerName: typed || '',
+        textValue: (sigTextFieldEl ? sigTextFieldEl.value : '').trim(),
+        initials: (sigInitialsEl ? sigInitialsEl.value : '').trim()
+      };
+      var compact = compactSignature();
+      payload.base64 = compact.base64;
+      payload.width = compact.width;
+      payload.height = compact.height;
+
+S.setBusy('btnSubmit', true);
+      document.getElementById('btnSubmit').disabled = true;
+      document.getElementById('btnDecline').disabled = true;
+      navigateTop(buildActionUrl(payload));
+    }
+
+    function decline() {
+      var box = document.getElementById('declineBox');
+      if (!box) { return; }
+      box.style.display = 'block';
+      var ta = document.getElementById('declineReason');
+      if (ta) { ta.focus(); }
+      if (box.scrollIntoView) { box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+    }
+
+    function cancelDecline() {
+      var box = document.getElementById('declineBox');
+      if (box) { box.style.display = 'none'; }
+      var ta = document.getElementById('declineReason');
+      if (ta) { ta.value = ''; }
+      S.hideError();
+    }
+
+    function confirmDecline() {
+      var ta = document.getElementById('declineReason');
+      var reason = ta ? String(ta.value || '').replace(/\r?\n/g, ' ').trim() : '';
+      if (!reason) {
+        S.showError('Please enter a reason for declining.');
+        if (ta) { ta.focus(); }
+        return;
+      }
+      S.hideError();
+      S.setBusy('btnDeclineConfirm', true);
+      document.getElementById('btnSubmit').disabled = true;
+      document.getElementById('btnDecline').disabled = true;
+      document.getElementById('btnDeclineConfirm').disabled = true;
+      var payload = {
+        action: 'decline',
+        jobId: INIT.jobId,
+        signToken: INIT.signToken || '',
+        nonce: INIT.nonce || '',
+        signerEmail: INIT.signerEmail || '',
+        reason: reason
+      };
+      navigateTop(buildActionUrl(payload));
+    }
+  </script>
+</body>
+</html>

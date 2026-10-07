@@ -1,0 +1,89 @@
+DocuPDF Sign — OAuth Scope Justification
+============================================
+Project: Google Workspace Add-on (Sheets) | PWMAI product ecosystem
+Audit date: 2026-08-14
+Policy: ZERO restricted OAuth scopes. Only non-restricted (and sensitive-but-
+non-restricted) scopes are declared, each with an on-file justification for the
+Google Workspace Marketplace review.
+
+WHAT THIS ADD-ON DOES
+---------------------
+Signs EXISTING flattened PDFs (invoices, MOUs) by overlaying signer ink +
+an audit stamp (SHA-256 hash + QR) onto the PDF, then exports the signed PDF
+to a Drive folder. Up to two signers (Party A / Party B) per document. Remote
+signers draw in a token-gated web-app modal; the doc OWNER's session finalizes.
+
+---------------------------------------------------------------------------
+SCOPE TABLE
+---------------------------------------------------------------------------
+1. https://www.googleapis.com/auth/spreadsheets.currentonly
+   Category : Non-restricted
+   Use      : Read row data (signer emails/names, status, doc name) and write
+              signing status into the active sheet only.
+   Why not full spreadsheets? Restricted. The add-on only operates on the
+   sheet it is installed in; currentonly is the minimal privilege.
+
+2. https://www.googleapis.com/auth/drive.file
+   Category : Non-restricted
+   Use      :
+     - Read the source PDF chosen by the owner (Google Picker selection grants
+       per-file access; also used for the "Merged Doc URL" row fallback when a
+       DocuMail Pro-generated PDF id is present and accessible).
+     - Create the output folder and the _WORKING / _SIGNED.pdf files.
+     - Store signer signature PNGs as app-created temp files.
+   Why not full drive? Restricted. drive.file limits access to files the app
+   created or that the user explicitly opened/selected with the app.
+
+3. https://www.googleapis.com/auth/gmail.send
+   Category : Non-restricted
+   Use      : Dispatch token-gated signature-request emails to signers.
+   Why not gmail.modify/read? Send-only. The mailbox is never read.
+
+4. https://www.googleapis.com/auth/script.container.ui
+   Category : Non-restricted
+   Use      : Render the sidebar (SidebarWizard) and signer modal
+              (SignatureModal) inside the host application.
+
+5. https://www.googleapis.com/auth/userinfo.email
+   Category : Sensitive, not restricted
+   Use      : Bind the signer's identity (email) to the audit record for a
+              legally-compliant signature trail. Email is the minimum identity
+              field; no profile data is requested.
+
+6. https://www.googleapis.com/auth/script.external_request
+   Category : Non-sensitive (whitelisted)
+   Use      : Fetch the QuickChart QR PNG (https://quickchart.io/) for the
+              verification stamp embedded in the signed PDF.
+   Why safe? Only a hash + validation URL is sent to the QR service; no user
+   data or document content is transmitted. Bounded by urlFetchWhitelist.
+
+---------------------------------------------------------------------------
+REMOVED SCOPE (vs. earlier plan)
+---------------------------------------------------------------------------
+- https://www.googleapis.com/auth/documents.currentonly — REMOVED. The
+  earlier Docs-template merge path was replaced by direct PDF overlay
+  (vendored pdf-lib + DriveApp file blobs). The add-on no longer touches the
+  Docs service, so no document scope is declared.
+
+---------------------------------------------------------------------------
+ENFORCEMENT NOTES
+---------------------------------------------------------------------------
+- urlFetchWhitelist: ["https://quickchart.io/"] only. Any other outbound
+  request fails at runtime. PDF bytes are read via DriveApp.getBlob() (no
+  Drive API urlFetch needed), so no googleapis.com whitelist entry is required.
+- Signing model: remote signers sign in a token-gated modal; the doc OWNER's
+  session (web app executes-as-ME) finalizes. No cross-account Drive writes
+  and no additional scopes for the signer.
+- Anonymous transport (build session 2026-08-18): the modal now submits via the
+  web app's doPost JSON API (fetch → `action=sign|decline`) and previews the PDF
+  from `doGet?action=pdf` (bytes served by the owner's drive.file session).
+  These change only TRANSPORT and LOCKING — no new or broader scope is declared.
+- Token model: per-slot one-time tokens + nonce, 7-day expiry, stored in Script
+  Properties and validated in doGet before the modal is served. Unauthorized
+  links get a generic error page.
+- No external storage. All artefacts live inside the user's Google Workspace.
+- The "Merged Doc URL" fallback path is gated by PROBE_DOC_ACCESS(): a file
+  created by another project (DocuMail Pro) may not be reachable under
+  drive.file; the probe fails fast and directs the owner to the Picker instead.
+
+Sign-off: PWMAI Security & Compliance

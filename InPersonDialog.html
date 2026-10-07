@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+  <head>
+      <meta charset="utf-8">
+<base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root {
+        --pw-blue: #1a73e8;
+        --pw-blue-dark: #185abc;
+        --pw-bg: #f8f9fa;
+        --pw-surface: #ffffff;
+        --pw-text: #202124;
+        --pw-muted: #5f6368;
+        --pw-border: #dadce0;
+        --pw-red: #d93025;
+        --pw-radius: 8px;
+      }
+      body { background: var(--pw-bg); }
+      .pw-card {
+        background: var(--pw-surface);
+        border: 1px solid var(--pw-border);
+        border-radius: var(--pw-radius);
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      .pw-card-title { font-size: 14px; font-weight: 600; color: var(--pw-text); margin: 0 0 4px; }
+      .pw-title { font-size: 20px; font-weight: 500; color: var(--pw-blue); margin: 0 0 4px; }
+      .pw-subtitle { color: var(--pw-muted); font-size: 13px; margin: 0 0 12px; }
+      .pw-section { font-size: 13px; font-weight: 500; color: var(--pw-muted); text-transform: uppercase; letter-spacing: .4px; margin: 16px 0 8px; }
+      input.pw-input, select.pw-input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--pw-border);
+        border-radius: 6px;
+        font-size: 14px;
+        background: var(--pw-surface);
+        color: var(--pw-text);
+        box-sizing: border-box;
+      }
+      input.pw-input:focus, select.pw-input:focus {
+        outline: none;
+        border-color: var(--pw-blue);
+        box-shadow: 0 0 0 2px rgba(26, 115, 232, .2);
+      }
+      .pw-btn {
+        display: inline-block;
+        border: none;
+        border-radius: 6px;
+        padding: 9px 16px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        text-align: center;
+        background: var(--pw-blue);
+        color: #fff;
+        white-space: nowrap;
+      }
+      .pw-btn:hover { background: var(--pw-blue-dark); }
+      .pw-btn:disabled { opacity: .5; cursor: not-allowed; }
+      .pw-btn.block { display: block; width: 100%; }
+      .pw-help { font-size: 12px; color: var(--pw-muted); margin-top: 4px; }
+    </style>
+  </head>
+  <body style="font-family:Roboto,Arial,sans-serif;margin:0;padding:16px;background:#f8f9fa">
+    <div id="app">
+      <h1 class="pw-title" style="margin-bottom:4px">Sign on this device</h1>
+      <p class="pw-subtitle" style="margin:0 0 16px">
+        Pick a row for <strong id="typeName"></strong> — the type's template PDF is signed for that row.
+        Open the signing page on this (shared) device so the signer can sign in person.
+      </p>
+
+      <div class="pw-card" style="margin-bottom:16px;padding:14px">
+        <div class="pw-section" style="margin-top:0">New sign request</div>
+        <label class="pw-help" style="margin:0 0 6px;display:block">
+          Row (choose Party B below, or type a row number)
+        </label>
+        <select id="candSel" class="pw-input" style="margin-bottom:8px">
+          <option value="">Loading rows…</option>
+        </select>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="rowNum" class="pw-input" type="number" min="2" placeholder="Row #" style="flex:1">
+          <button id="btnCreate" class="pw-btn" onclick="createSign()">✍️ Create link</button>
+        </div>
+        <div id="newResult" class="pw-help" style="margin:0"></div>
+      </div>
+
+      <div class="pw-section" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Open a pending link (already sent)</span>
+        <button id="btnClearAll" class="pw-btn ghost" style="padding:4px 10px;font-size:12px" onclick="clearAllPending()">Clear all</button>
+      </div>
+      <div id="pendingWrap" style="display:none">
+        <div id="pending"></div>
+      </div>
+      <div id="pendingEmpty" class="pw-card" style="display:none;text-align:center;color:#5f6368;padding:16px">
+        No pending links right now.
+      </div>
+      <div id="errorBox" style="display:none;color:#d93025;font-size:13px;padding:10px;background:#fce8e6;border-radius:6px;margin-top:10px"></div>
+    </div>
+    <script>
+      var S = window.PWAI || {
+        showError: function (m) { var el = document.getElementById('errorBox'); el.style.display = ''; el.textContent = m; },
+        hideError: function () { document.getElementById('errorBox').style.display = 'none'; }
+      };
+
+      var TYPE_ID = '';
+      var candidates = [];
+      var pending = [];
+
+      function init() {
+        TYPE_ID = window.__TYPE_ID__ || '';
+        document.getElementById('typeName').textContent = window.__TYPE_NAME__ || '';
+        loadCandidates();
+        loadPending();
+      }
+
+      function loadCandidates() {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            var sel = document.getElementById('candSel');
+            if (!res.ok) {
+              sel.innerHTML = '<option value="">' + (res.error || 'Error') + '</option>';
+              return;
+            }
+            candidates = res.candidates || [];
+            if (!candidates.length) {
+              sel.innerHTML = '<option value="">No ready rows (need Party A email, no link yet)</option>';
+              document.getElementById('btnCreate').disabled = true;
+              return;
+            }
+            document.getElementById('btnCreate').disabled = false;
+            var html = candidates.map(function (c) {
+              var who = c.partyBName || c.partyBEmail || c.partyAName || c.partyAEmail;
+              var doc = c.docName ? ' — ' + c.docName : '';
+              return '<option value="' + c.rowNumber + '">Row ' + c.rowNumber + ': ' + who + doc + '</option>';
+            }).join('');
+            sel.innerHTML = html;
+            if (candidates.length === 1) {
+              document.getElementById('rowNum').value = candidates[0].rowNumber;
+            }
+          })
+          .withFailureHandler(function (err) {
+            document.getElementById('candSel').innerHTML = '<option value="">Error loading rows</option>';
+            S.showError(err.message);
+          })
+          .GET_SIGN_CANDIDATES(TYPE_ID);
+      }
+
+      function loadPending() {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (!res.ok) {
+              S.showError(res.error || 'Could not load pending links.');
+              return;
+            }
+            pending = res.jobs || [];
+            document.getElementById('pendingWrap').style.display = pending.length ? '' : 'none';
+            document.getElementById('pendingEmpty').style.display = pending.length ? 'none' : '';
+            var html = '';
+            pending.forEach(function (job) {
+              var esc = function (s) {
+                return String(s == null ? '' : s).replace(/[&<>]/g, function (m) {
+                  if (m === '&') return '&amp;';
+                  if (m === '<') return '&lt;';
+                  if (m === '>') return '&gt;';
+                  return m;
+                });
+              };
+              var who = esc(job.signerName || job.signerEmail || '');
+              var desig = esc(job.signerDesignation);
+              var email = esc(job.signerEmail);
+              var lbl = job.label === 'Party A' ? 'Signer A'
+                : job.label === 'Party B' ? 'Signer B'
+                : (job.label || ('Signer ' + job.slot));
+              var info = lbl + '- Name: ' + who +
+                (desig ? ', Designation: ' + desig : '') +
+                ', Email: ' + email;
+              html +=
+                '<div class="pw-card" style="margin-bottom:12px;padding:14px" id="job-' + job.jobId + '-' + job.slot + '">' +
+                '<div class="pw-card-title">Document to be signed- ' + esc(job.docName) + '</div>' +
+                '<div class="pw-help" style="margin:2px 0 10px">' + info + '</div>' +
+                '<div style="display:flex;gap:8px">' +
+                '<button class="pw-btn block" style="flex:1" onclick="window.open(\'' + job.url + '\', \'_blank\')">✍️ Open signing page</button>' +
+                '<button class="pw-btn ghost" style="flex-shrink:0" onclick="resendPending(\'' + job.jobId + '\', \'' + job.slot + '\', this)" title="Re-send the signing email to this signer">📧 Resend</button>' +
+                '<button class="pw-btn ghost" onclick="deletePending(\'' + job.jobId + '\', \'' + job.slot + '\', this)" title="Delete this link">🗑️</button>' +
+                '</div>' +
+                '<div class="pw-help" id="res-msg-' + job.jobId + '-' + job.slot + '" style="margin:8px 0 0"></div>' +
+                '</div>';
+            });
+            document.getElementById('pending').innerHTML = html;
+          })
+          .withFailureHandler(function (err) {
+            S.showError(err.message);
+          })
+          .GET_PENDING_JOBS(TYPE_ID);
+      }
+
+      function createSign() {
+        S.hideError();
+        var row = Number(document.getElementById('rowNum').value) || 0;
+        if (!row) {
+          var sel = document.getElementById('candSel');
+          if (sel.value) { row = Number(sel.value); }
+        }
+        if (!row) { S.showError('Pick a row first.'); return; }
+        document.getElementById('btnCreate').disabled = true;
+        var box = document.getElementById('newResult');
+        box.textContent = 'Creating the sign request\u2026';
+        box.style.color = '#5f6368';
+        var finished = false;
+        setTimeout(function () {
+          if (!finished) {
+            box.textContent = 'No response yet — the links may still be created. Check the Pending list below.';
+            box.style.color = '#5f6368';
+            document.getElementById('btnCreate').disabled = false;
+            loadPending();
+          }
+        }, 15000);
+        google.script.run
+          .withSuccessHandler(function (res) {
+            finished = true;
+            try {
+              if (res && res.ok === false) {
+                box.innerHTML = '<span style="color:#d93025">' +
+                  (res.error || 'Could not create the sign request.') + '</span>';
+              } else if (!res) {
+                box.innerHTML = '<span style="color:#b26a00">Creation is still running — check the Pending list below.</span>';
+                setTimeout(function () { try { loadPending(); } catch (e) {} }, 3000);
+                setTimeout(function () { try { loadPending(); } catch (e) {} }, 8000);
+              } else {
+                var firstUrl = res.slots && res.slots.length ? res.slots[0].signUrl : null;
+                box.innerHTML = '<span style="color:#188038">Link created for row ' + row + '.</span>';
+                if (firstUrl) {
+                  box.innerHTML += ' <button class="pw-btn" style="margin-top:8px" onclick="window.open(\'' + firstUrl + '\', \'_blank\')">✍️ Open signing page</button>';
+                }
+if (!res.linksWritten) {
+                  box.innerHTML += '<div style="color:#d93025;margin-top:6px">Warning: ' + (res.linkError || 'links not written') + '</div>';
+                }
+                if (res.previewWarning) {
+                  box.innerHTML += '<div style="color:#b26a00;margin-top:6px">Preview: ' + res.previewWarning + '</div>';
+                }
+                if (res.emailErrors && res.emailErrors.length) {
+                  box.innerHTML += '<div style="color:#d93025;margin-top:6px">Email errors: ' + res.emailErrors.join('; ') + '</div>';
+                }
+              }
+            } catch (err) {
+              box.textContent = 'Created, but could not show details: ' + err.message;
+              box.style.color = '#d93025';
+            }
+            try { loadCandidates(); loadPending(); } catch (e) {}
+            if (box.scrollIntoView) { box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+            document.getElementById('btnCreate').disabled = false;
+          })
+          .withFailureHandler(function (err) {
+            finished = true;
+            box.innerHTML = '<span style="color:#d93025">' + (err && err.message ? err.message : 'Sign request failed.') + '</span>';
+            if (box.scrollIntoView) { box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+            document.getElementById('btnCreate').disabled = false;
+          })
+          .SIGN_SELECTED_ROW(TYPE_ID, row);
+      }
+
+      function deletePending(jobId, slotNum, btn) {
+        if (!confirm('Delete this sign link? The other party\u2019s link is kept.')) { return; }
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res.ok) {
+              loadPending();
+            } else {
+              S.showError(res.error || 'Could not delete.');
+            }
+          })
+          .withFailureHandler(function (err) { S.showError(err.message); })
+          .DELETE_PENDING_SLOT(jobId, slotNum);
+      }
+
+      function resendPending(jobId, slotNum, btn) {
+        var msg = document.getElementById('res-msg-' + jobId + '-' + slotNum);
+        if (msg) { msg.textContent = 'Re-sending email\u2026'; msg.style.color = '#5f6368'; }
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res.ok) {
+              if (msg) {
+                msg.textContent = 'Email re-sent to ' + (res.email || 'signer') + '.';
+                msg.style.color = '#188038';
+              }
+            } else {
+              if (msg) { msg.textContent = res.error || 'Could not re-send.'; msg.style.color = '#d93025'; }
+              S.showError(res.error || 'Could not re-send.');
+            }
+          })
+          .withFailureHandler(function (err) {
+            if (msg) { msg.textContent = err.message; msg.style.color = '#d93025'; }
+            S.showError(err.message);
+          })
+          .RESEND_SLOT_EMAIL(jobId, slotNum);
+      }
+
+      function clearAllPending() {
+        if (!confirm('Clear ALL pending sign links for this type?')) { return; }
+        google.script.run
+.withSuccessHandler(function (res) {
+            var box = document.getElementById('newResult');
+            if (res.ok) {
+              box.innerHTML = '<span style="color:#188038">Cleared ' + (res.removed || 0) + ' pending sign request(s). ' +
+                'Available rows are refreshed — you can create a new sign request now.</span>';
+            } else {
+              box.innerHTML = '<span style="color:#d93025">' + (res.error || 'Could not clear pending links.') + '</span>';
+            }
+            if (box.scrollIntoView) { box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+            loadPending();
+            loadCandidates();
+          })
+          .withFailureHandler(function (err) { S.showError(err.message); })
+          .DELETE_ALL_PENDING(TYPE_ID);
+      }
+
+      window.onload = init;
+    </script>
+  </body>
+</html>

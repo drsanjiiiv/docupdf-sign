@@ -1,0 +1,32 @@
+# ── Secrets (NEVER commit) ──────────────────────────────────────
+.clasprc.json
+.clasprc.json.*
+.clasprc.json.original
+client_secret_*.json
+
+# ── Local backups / temp files ──────────────────────────────────
+*.bak
+*.fixed
+*.clean
+*.tmp
+*.orig
+
+# ── Junk from previous sessions ─────────────────────────────────
+t1.bin
+t2.bin
+
+# ── Local-machine clasp state ───────────────────────────────────
+.clasp-account
+
+# ── Tooling / logs ──────────────────────────────────────────────
+node_modules/
+*.log
+npm-debug.log*
+
+# ── OS / editor ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~

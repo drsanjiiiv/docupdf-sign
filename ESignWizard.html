@@ -1,0 +1,863 @@
+<!--
+  file name: ESignWizard.html
+  Step-by-step E-sign configuration modal (Template-based wizard styling).
+  Steps: 1 Name & Type · 2 Rows/Filter · 3 Signers · 4 Output & Links
+         5 Email (standalone only) · 6 Schedule
+  Opened by OPEN_ESIGN_MODAL(typeId); reads window.__ESIGN_TYPE_ID__.
+-->
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+<base target="_top">
+  <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+  <script src="https://apis.google.com/js/api.js"></script>
+  <?!= include('CSS_JS_Bundle'); ?>
+  <style>
+    body {
+      padding: 0;
+      margin: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: #f8f9fa;
+      color: #3c4043;
+      overflow: hidden;
+    }
+
+    .modal-wrapper { display: flex; flex-direction: column; height: 100vh; }
+
+    .wizard-header {
+      background: #ffffff;
+      padding: 14px 24px;
+      border-bottom: 1px solid #dadce0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .wizard-title-display {
+      font-size: 14px;
+      font-weight: bold;
+      color: #1a73e8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .progress-dots { display: flex; gap: 8px; }
+    .dot { width: 8px; height: 8px; background: #dadce0; border-radius: 50%; }
+    .dot.active { background: #1a73e8; }
+
+    .wizard-content {
+      flex: 1;
+      padding: 20px 24px;
+      overflow-y: auto;
+      box-sizing: border-box;
+      background-color: #f8f9fa;
+    }
+
+    .step-panel { display: none; background: #ffffff; padding: 20px 24px; border-radius: 8px; box-shadow: 0 1px 2px rgba(60, 64, 67, 0.1); }
+    .step-panel.active { display: block; }
+
+    .instruction-text { font-size: 13px; color: #5f6368; margin-top: 0; margin-bottom: 18px; line-height: 1.5; }
+
+    .field-row { margin-bottom: 12px; }
+    .field-row label { display: block; font-weight: bold; font-size: 12px; margin-bottom: 4px; color: #5f6368; }
+    .field-row label input[type="radio"] { margin-right: 6px; }
+
+    input[type="text"], select, textarea {
+      padding: 10px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #3c4043;
+      min-height: 38px;
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    .check { display: block; font-size: 13px; color: #202124; margin-bottom: 10px; cursor: pointer; }
+    .check input { margin-right: 8px; }
+
+    .info-box {
+      background: #e8f0fe;
+      border: 1px solid #c2d8fd;
+      color: #1a73e8;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 14px;
+    }
+
+    .error-box {
+      color: #d93025;
+      background: #fce8e6;
+      padding: 10px 14px;
+      border-radius: 4px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      display: none;
+      font-weight: 500;
+      border-left: 4px solid #d93025;
+    }
+    .error-box.show { display: block; }
+
+    .wizard-header-btns { display: flex; gap: 8px; align-items: center; }
+
+    .help-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: none;
+      background: #1a73e8;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      line-height: 1;
+      box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .help-btn:hover { background: #185abc; box-shadow: 0 2px 6px rgba(60, 64, 67, 0.4); }
+
+    .help-box {
+      display: none;
+      background: #fef7e0;
+      border: 1px solid #fde293;
+      color: #8a6d00;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.6;
+      margin-bottom: 14px;
+      white-space: pre-line;
+    }
+
+    .field-note { font-size: 11px; color: #5f6368; margin-top: 4px; }
+
+    .wizard-footer {
+      background: #ffffff;
+      padding: 14px 24px;
+      border-top: 1px solid #dadce0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .nav-btn-deck { display: flex; gap: 10px; }
+
+    .btn-gray {
+      background-color: #f1f3f4;
+      color: #3c4043;
+      border: 1px solid #dadce0;
+    }
+    .btn-gray:hover { background-color: #e8eaed; }
+
+    button.blue, #nextBtn, #saveBtn {
+      min-height: 38px;
+      padding: 0 18px;
+      font-size: 13px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid #155cb4;
+    }
+    #nextBtn { background-color: #1a73e8; color: #ffffff; }
+    #backBtn { color: #3c4043; background-color: #f1f3f4; border: 1px solid #dadce0; }
+    #saveBtn { background-color: #137333; color: #ffffff; border-color: #0f5d29; }
+    #nextBtn:disabled, #saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #backBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+
+<body>
+  <div class="modal-wrapper">
+    <div class="wizard-header">
+      <div class="wizard-title-display" id="wizardTitleDisplay">STEP 1 - NAME</div>
+      <div class="wizard-header-btns">
+        <div class="progress-dots" id="progressDotsContainer"></div>
+        <button class="help-btn" id="helpBtn" title="Help for this step" onclick="toggleHelp()">?</button>
+      </div>
+    </div>
+
+    <div class="wizard-content">
+      <div id="helpBox" class="help-box"></div>
+      <div id="errorBox" class="error-box"></div>
+
+      <!-- STEP 1: Name -->
+      <div class="step-panel active" id="panelStep1">
+        <p class="instruction-text">Give this E-sign a name so you can find it later in the sidebar.</p>
+        <div class="field-row">
+          <label>E-sign name</label>
+          <input type="text" id="esignName" placeholder="e.g., MOU - Two Party, Invoice Sign">
+          <div class="field-note">Examples: MOU, Invoice Sign, PO Approval.</div>
+        </div>
+      </div>
+
+      <!-- STEP 2: Sheet -->
+      <div class="step-panel" id="panelStep2">
+        <p class="instruction-text">Which sheet (tab) holds the rows to sign?</p>
+        <div class="field-row">
+          <label>Sheet holding the rows</label>
+          <select id="sheetSelect"></select>
+          <div class="field-note">Defaults to the sheet you are currently viewing. Switch here if the rows live on another tab.</div>
+        </div>
+        <div class="info-box" id="modeInfo">
+          template mode: <strong id="modeName">Standalone</strong><br>
+          <span id="modeReason">No Template-based columns found — DocuPDF emails signers itself.</span>
+        </div>
+      </div>
+
+      <!-- STEP 3: Template PDF -->
+      <div class="step-panel" id="panelStep3">
+        <p class="instruction-text">Choose the PDF template this E-sign uses. <b>Browse</b> grants the add-on access to the file (required under the app's secure file scope).</p>
+        <div class="field-row">
+          <label>Template for this E-sign (PDF or Google Doc) <span style="color:#5f6368;">(standalone mode)</span></label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="templatePdfInput" placeholder="Paste a Drive link / file ID, or browse">
+            <button type="button" id="pickPdfBtn" onclick="pickPdf()" style="flex-shrink:0;min-height:38px;padding:0 14px;border:1px solid #155cb4;background:#1a73e8;color:#fff;border-radius:4px;cursor:pointer;font-size:13px;">📂 Browse</button>
+          </div>
+          <div class="field-note">Every row of this E-sign signs this same template.</div>
+          <div id="sourcePdfStatus" class="field-note" style="color:#137333;display:none;"></div>
+        </div>
+      </div>
+
+      <!-- STEP 4: Rows / Filter -->
+      <div class="step-panel" id="panelStep4">
+        <p class="instruction-text" id="rowsInstruction">Which rows should this E-sign work on? Leave it empty for <b>all rows</b> on the sheet. Use it only when one sheet mixes different documents (e.g. PO, Invoice and MOU rows together).</p>
+        <div id="rowsFilterFields">
+        <div class="field-row">
+          <label>Only work on rows where this column <span style="color:#5f6368;">(optional — empty = all rows)</span></label>
+          <select id="filterColumn"></select>
+          <div class="field-note">Example: if column "Doc Type" holds "PO" / "Invoice" / "MOU", pick that column so this E-sign only signs MOU rows.</div>
+        </div>
+        <div class="field-row">
+          <label>Matches</label>
+          <select id="filterOperator">
+            <option value="NOT_EMPTY">Has any value (not empty)</option>
+            <option value="CONTAINS">Contains this text…</option>
+          </select>
+        </div>
+        <div id="condValueWrapper" class="field-row" style="display:none;">
+          <label>Filter target keyword</label>
+          <input type="text" id="filterKeyword" placeholder="e.g., Approved, MOU, Pending">
+        </div>
+        </div>
+        <div id="standaloneRowsNote" class="info-box" style="display:none;background:#e6f4ea;border-color:#ceead6;color:#137333;margin-top:8px;">
+          Manual pick only — you'll choose which row to sign from the sidebar's
+          <strong>✍️ Sign a row</strong> dialog. Nothing signs automatically.
+        </div>
+      </div>
+
+      <!-- STEP 5: Signers -->
+      <div class="step-panel" id="panelStep5">
+        <p class="instruction-text">Map the signer columns. Party B optional = single-party signing; two slots = both must sign.</p>
+        <div class="field-row" id="signingRequiredRow">
+          <label>Signing Required column (Yes/No)</label>
+          <select id="signingRequiredColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Party A email column</label>
+          <select id="signerEmailColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Party A name column <span style="color:#5f6368;">(optional)</span></label>
+          <select id="signerNameColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Party A designation column <span style="color:#5f6368;">(optional — shown on the signed PDF &amp; email)</span></label>
+          <select id="signerADesignationColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Party B email column <span style="color:#5f6368;">(optional)</span></label>
+          <select id="signerBEmailColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Party B name column <span style="color:#5f6368;">(optional)</span></label>
+          <select id="signerBNameColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Party B designation column <span style="color:#5f6368;">(optional)</span></label>
+          <select id="signerBDesignationColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Doc name column <span style="color:#5f6368;">(optional)</span></label>
+          <select id="docNameColumn"></select>
+        </div>
+        <div class="field-row" style="margin-top:8px;">
+          <label>Signature placement <span style="color:#5f6368;">(optional — defaults: last page, center)</span></label>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <label style="flex:1;min-width:110px;">Party A — Page
+              <input type="number" id="placeAPage" min="0" placeholder="0 = last page">
+            </label>
+            <label style="flex:1;min-width:110px;">Party A — Align
+              <select id="placeAAlign">
+                <option value="center">Center</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+            <label style="flex:1;min-width:110px;">Party A — Vertical
+              <select id="placeAVOffset">
+                <option value="0.85">Bottom</option>
+                <option value="0.5">Middle</option>
+                <option value="0.05">Top</option>
+              </select>
+            </label>
+          </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">
+            <label style="flex:1;min-width:110px;">Party B — Page
+              <input type="number" id="placeBPage" min="0" placeholder="0 = last page">
+            </label>
+            <label style="flex:1;min-width:110px;">Party B — Align
+              <select id="placeBAlign">
+                <option value="center">Center</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+            <label style="flex:1;min-width:110px;">Party B — Vertical
+              <select id="placeBVOffset">
+                <option value="0.85">Bottom</option>
+                <option value="0.5">Middle</option>
+                <option value="0.05">Top</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 6: Output & Links -->
+      <div class="step-panel" id="panelStep6">
+        <p class="instruction-text">Map the output columns and choose where signed PDFs are saved.</p>
+        <div class="field-row">
+          <label>Sign Link - Party A column</label>
+          <select id="linkAColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Sign Link - Party B column</label>
+          <select id="linkBColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Status column (DocuPDF Status)</label>
+          <select id="statusColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Document Signed column <span style="color:#5f6368;">(auto-maintained)</span></label>
+          <select id="documentSignedColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Signer A Status column <span style="color:#5f6368;">(auto-maintained)</span></label>
+          <select id="signerAStatusColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Signer B Status column <span style="color:#5f6368;">(auto-maintained)</span></label>
+          <select id="signerBStatusColumn"></select>
+        </div>
+        <div class="field-row">
+          <label>Signed PDFs folder (Drive) ID <span style="color:#5f6368;">(empty = auto-created)</span></label>
+          <input type="text" id="outputFolderId" placeholder="Folder ID">
+        </div>
+      </div>
+
+      <!-- STEP 7: Email -->
+      <div class="step-panel" id="panelStep7">
+        <div id="templateEmailInfo" class="info-box" style="display:none;">
+          Template-based sends the signing email — DocuPDF only writes the sign links into the row. No email template needed.
+        </div>
+        <p class="instruction-text" id="emailStepInstruction">Configure the signing email. Use {signerName}, {signerDesignation}, {signerEmail}, {docName}, {signUrl} placeholders.</p>
+        <div id="emailFields">
+          <label class="check"><input type="checkbox" id="autoSendEmail"> Auto-send the signing email after each job</label>
+          <label class="check"><input type="checkbox" id="attachSourcePdf"> Attach the unsigned PDF to the email</label>
+          <label class="check"><input type="checkbox" id="emailWorkingToSigners"> Email working PDF to each signer after they sign</label>
+          <label class="check"><input type="checkbox" id="emailFinalToSigners"> Email final signed PDF to all signers when complete</label>
+          <label class="check"><input type="checkbox" id="notifyOnFinalize"> Notify me when the signed PDF is ready</label>
+          <div id="notifyOnFinalizeWarn" class="field-note" style="color:#b3261e;display:none;">Note: turning this off also disables the signed PDF email to the owner.</div>
+          <div class="field-row">
+            <label>Notify email <span style="color:#5f6368;">(blank = owner)</span></label>
+            <input type="text" id="notifyOwnerEmail" placeholder="you@company.com">
+          </div>
+          <div class="field-row">
+            <label>Company name (sender)</label>
+            <input type="text" id="companyName" placeholder="Acme Inc.">
+          </div>
+          <div class="field-row">
+            <label>Brand color <span style="color:#5f6368;">(signer page + email button)</span></label>
+            <input type="color" id="brandColor" value="#1a73e8" style="width:56px;height:36px;padding:2px;">
+          </div>
+          <div class="field-row">
+            <label>Brand logo URL <span style="color:#5f6368;">(optional — public image URL)</span></label>
+            <input type="text" id="logoUrl" placeholder="https://example.com/logo.png">
+          </div>
+          <div class="field-row">
+            <label>Signer fills a text field <span style="color:#5f6368;">(optional — e.g. "Full name", "Title", "Company")</span></label>
+            <input type="text" id="signerTextFieldLabel" placeholder="blank = off">
+          </div>
+          <label class="check"><input type="checkbox" id="initialsEnabled" checked> Collect initials (optional) on the signer page</label>
+          <label class="check"><input type="checkbox" id="qrInEmail" checked> Add a QR code of the signing link in the email</label>
+          <div class="field-row">
+            <label>Remind signers after (days) <span style="color:#5f6368;">(0 = off)</span></label>
+            <input type="number" id="reminderDays" min="0" value="0">
+          </div>
+          <label class="check"><input type="checkbox" id="sequentialSigning"> Sequential signing — Party A signs first, then Party B is emailed</label>
+          <div class="field-row">
+            <label>Reply-to <span style="color:#5f6368;">(optional)</span></label>
+            <input type="text" id="replyToEmail" placeholder="sales@acme.com">
+          </div>
+          <div class="field-row">
+            <label>Subject</label>
+            <input type="text" id="emailSubject">
+          </div>
+          <div class="field-row">
+            <label>Email body</label>
+            <textarea id="emailBody" rows="4"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 8: Schedule -->
+      <div class="step-panel" id="panelStep8">
+        <p class="instruction-text">Choose how often this E-sign runs. Turn on "Enable Auto-sync" (menu) to activate the time trigger.</p>
+        <div class="field-row"><label><input type="radio" name="schedule" value="0" checked> Manual — run only when triggered</label></div>
+        <div class="field-row"><label><input type="radio" name="schedule" value="5"> Every 5 minutes</label></div>
+        <div class="field-row"><label><input type="radio" name="schedule" value="15"> Every 15 minutes</label></div>
+        <div class="field-row"><label><input type="radio" name="schedule" value="60"> Every 1 hour</label></div>
+        <div class="field-row"><label><input type="radio" name="schedule" value="360"> Every 6 hours</label></div>
+        <div class="field-row"><label><input type="radio" name="schedule" value="720"> Every 12 hours</label></div>
+        <div class="field-row"><label><input type="radio" name="schedule" value="1440"> Every 24 hours</label></div>
+      </div>
+    </div>
+
+    <div class="wizard-footer">
+      <button class="btn-gray" id="backBtn" onclick="navBack()" disabled>Back</button>
+      <div class="nav-btn-deck">
+        <button class="blue" id="saveBtn" onclick="saveType()">💾 Save E-sign</button>
+        <button class="blue" id="nextBtn" onclick="navNext()">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var S = window.PWAI || {
+      run: function (name, args) {
+        return new Promise(function (resolve, reject) {
+          var f = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+          f[name].apply(f, args || []);
+        });
+      },
+      showError: function (msg) {
+        var el = document.getElementById('errorBox');
+        if (el) { el.textContent = msg; el.classList.add('show'); }
+        else { alert(msg); }
+      },
+      hideError: function () {
+        var el = document.getElementById('errorBox');
+        if (el) { el.classList.remove('show'); }
+      },
+      setBusy: function (btnId, busy) {
+        var btn = document.getElementById(btnId);
+        if (!btn) { return; }
+        if (busy) { btn.disabled = true; btn.textContent = 'Working…'; }
+        else { btn.disabled = false; btn.textContent = '💾 Save E-sign'; }
+      }
+    };
+
+    var PICKER_CLIENT_ID = '1097630912653-udts8mpl0s2rr3i3mc3ch4bavk1b7aif.apps.googleusercontent.com';
+    var PICKER_API_KEY = 'AIzaSyB35NCx7stT71wZQbyGqjSVImbs4SszkDY';
+    var pickedPdfId = '';
+
+    function pickPdf() {
+      if (PICKER_CLIENT_ID && PICKER_API_KEY) {
+        if (typeof google !== 'undefined' && google.picker) {
+          openDrivePicker();
+          return;
+        }
+        loadPickerApi();
+        return;
+      }
+      var pasted = document.getElementById('templatePdfInput').value.trim();
+      if (pasted) { pickedPdfId = pasted; showPdfStatus('Will use on Save: ' + pasted); return; }
+      document.getElementById('templatePdfInput').focus();
+      S.showError('Paste a Drive link or file ID into the field, then click Save.');
+    }
+
+    function loadPickerApi() {
+      if (typeof gapi === 'undefined') { S.showError('Could not load the Google Picker.'); return; }
+      gapi.load('picker', { callback: openDrivePicker });
+    }
+
+    function openDrivePicker() {
+      google.script.run
+        .withSuccessHandler(function (token) {
+          if (!token) { S.showError('No OAuth token available for the Picker.'); return; }
+          buildPicker(token);
+        })
+        .withFailureHandler(function (err) { S.showError('Could not get an OAuth token for the Picker: ' + err.message); })
+        .GET_OAUTH_TOKEN();
+    }
+
+    function buildPicker(token) {
+      var view = new google.picker.View(google.picker.ViewId.DOCS);
+      view.setMimeTypes('application/pdf,application/vnd.google-apps.document');
+      var picker = new google.picker.PickerBuilder()
+        .enableFeature(google.picker.Feature.NAV_HIDDEN)
+        .setOAuthToken(token)
+        .setDeveloperKey(PICKER_API_KEY)
+        .setAppId('1097630912653')
+        .setOrigin(google.script.host.origin || window.location.origin)
+        .setLocale('en')
+        .addView(view)
+        .setCallback(function (data) {
+          if (data.action === google.picker.Action.PICKED) {
+            var doc = data.docs[0];
+            pickedPdfId = doc.id;
+            document.getElementById('templatePdfInput').value = doc.id;
+            showPdfStatus('Template selected: ' + (doc.name || doc.id));
+          }
+        })
+        .build();
+      picker.setVisible(true);
+    }
+
+    function showPdfStatus(msg) {
+      var el = document.getElementById('sourcePdfStatus');
+      el.textContent = msg;
+      el.style.display = '';
+    }
+    var totalSteps = 8;
+    var stepNames = ['NAME', 'SHEET', 'PDF', 'ROWS / FILTER', 'SIGNERS', 'OUTPUT &amp; LINKS', 'EMAIL', 'SCHEDULE'];
+    var state = { typeId: '', type: null, headers: [], activeSheet: '', detectedMode: 'standalone', currentStep: 1 };
+
+    var HELP = {
+      1: 'Give this E-sign a name so you can find it in the sidebar.\n' +
+        '\u2022 Examples: MOU, Invoice Sign, PO Approval.\n' +
+        '\u2022 Each type = one signing workflow for a set of rows.',
+      2: 'Choose which sheet (tab) holds the rows to sign.\n' +
+        '\u2022 Defaults to the sheet you are currently viewing.\n' +
+        '\u2022 Switch here if the rows live on another tab.\n' +
+        '\u2022 template mode is detected automatically from the sheet columns: Template-based columns (merged documentsumentsumentsuments\u2026, Recipient Email) → template mode (DocuPDF writes links, Template emails). Otherwise Standalone (DocuPDF emails signers itself).',
+      3: 'Choose the PDF template this E-sign uses.\n' +
+        '\u2022 Use \u201cBrowse\u201d so the add-on is granted access to the file (needed under the app\u2019s secure drive.file scope).\n' +
+        '\u2022 Every row of this E-sign signs this same template PDF.\n' +
+        '\u2022 If a row also has a per-row Source Doc ID/URL, that one wins; otherwise the template is used.',
+      4: 'Choose which rows this E-sign applies to. Useful when one sheet mixes PO, Invoice and MOU rows.\n' +
+        '\u2022 Filter column: the column that identifies these rows.\n' +
+        '\u2022 Has any value: every row with a value in that column matches.\n' +
+        '\u2022 Contains text: only rows whose filter column contains the keyword (e.g. "MOU").\n' +
+        'Leave the filter column empty to apply to all rows.',
+      5: 'Map the columns that hold signer details.\n' +
+        '\u2022 Signing Required: the Yes/No column that gates a row (only Yes is signed).\n' +
+        '\u2022 Party A email/name: the primary signer (required).\n' +
+        '\u2022 Party B email/name: optional second signer. When present, both parties must sign before the PDF is finalised.\n' +
+        '\u2022 Doc name: the column holding the document/invoice name (optional; the PDF file name is used if blank).',
+      6: 'Map the output columns DocuPDF writes to.\n' +
+        '\u2022 Sign Link - Party A/B: where the one-time signing links are written (Template reads these).\n' +
+        '\u2022 DocuPDF Status: job status per row.\n' +
+        '\u2022 Document Signed: auto-maintained (blank = pending, No = not required, Signed by\u2026 = done).\n' +
+        '\u2022 Signed PDFs folder: blank = auto-created for you.',
+      7: 'The email signers receive with their signing link (Standalone mode only).\n' +
+        '\u2022 {signerName}, {signerDesignation}, {signerEmail}, {docName} and {signUrl} placeholders are replaced automatically.\n' +
+        'In template mode no email is needed here \u2014 Template sends it.',
+      8: 'How often this E-sign is checked for new rows.\n' +
+        '\u2022 Manual: run only when you press Run (or via the sheet edit trigger).\n' +
+        '\u2022 Timed: runs every 5 min to 24 h. Remember to enable Auto-sync from the menu.'
+    };
+
+    var COL_MAP = [
+      ['filterColumn', 'filterColumn'],
+      ['signingRequiredColumn', 'signingRequiredColumn'],
+      ['signerEmailColumn', 'signerEmailColumn'],
+      ['signerNameColumn', 'signerNameColumn'],
+      ['signerADesignationColumn', 'signerADesignationColumn'],
+      ['signerBEmailColumn', 'signerBEmailColumn'],
+      ['signerBNameColumn', 'signerBNameColumn'],
+      ['signerBDesignationColumn', 'signerBDesignationColumn'],
+      ['docNameColumn', 'docNameColumn'],
+      ['linkAColumn', 'linkAColumn'],
+      ['linkBColumn', 'linkBColumn'],
+      ['statusColumn', 'statusColumn'],
+      ['documentSignedColumn', 'documentSignedColumn'],
+      ['signerAStatusColumn', 'signerAStatusColumn'],
+      ['signerBStatusColumn', 'signerBStatusColumn']
+    ];
+
+    window.onload = function () {
+      state.typeId = window.__ESIGN_TYPE_ID__ || '';
+      loadType();
+    };
+
+    function loadType() {
+      S.run('GET_ESIGN_TYPE', [state.typeId]).then(function (res) {
+        if (!res.ok) { S.showError(res.error || 'Could not load.'); return; }
+        state.type = res.type || {};
+        state.headers = res.headers || [];
+        state.activeSheet = res.activeSheet || '';
+        populate(res.sheets || []);
+      }).catch(function (err) { S.showError(err.message); });
+    }
+
+    function populate(sheets) {
+      var t = state.type;
+      var preferred = t.dataSheetName || state.activeSheet || (sheets.length ? sheets[0] : '');
+      fillNameSelect('sheetSelect', sheets, preferred);
+      document.getElementById('esignName').value = t.name || '';
+      updateModeDisplay(detectMode(state.headers));
+      fillAllColSelects();
+      document.getElementById('filterOperator').value = t.filterOperator || 'NOT_EMPTY';
+      document.getElementById('filterKeyword').value = t.filterKeyword || '';
+      toggleCond();
+      document.getElementById('outputFolderId').value = t.outputFolderId || '';
+      document.getElementById('templatePdfInput').value = t.templateFileId || '';
+      pickedPdfId = t.templateFileId || '';
+      var pl = t.slotPlacement || {};
+      var pa = pl.A || {}, pb = pl.B || {};
+      document.getElementById('placeAPage').value = pa.page || 0;
+      document.getElementById('placeAAlign').value = pa.align || 'center';
+      document.getElementById('placeAVOffset').value = String(pa.vOffset || 0.85);
+      document.getElementById('placeBPage').value = pb.page || 0;
+      document.getElementById('placeBAlign').value = pb.align || 'center';
+      document.getElementById('placeBVOffset').value = String(pb.vOffset || 0.85);
+      document.getElementById('autoSendEmail').checked = t.autoSendEmail !== false;
+      document.getElementById('attachSourcePdf').checked = t.attachSourcePdf !== false;
+      document.getElementById('notifyOnFinalize').checked = t.notifyOnFinalize !== false;
+      document.getElementById('notifyOwnerEmail').value = t.notifyOwnerEmail || '';
+      document.getElementById('companyName').value = t.companyName || '';
+      document.getElementById('replyToEmail').value = t.replyToEmail || '';
+      document.getElementById('brandColor').value = t.brandColor || '#1a73e8';
+      document.getElementById('logoUrl').value = t.logoUrl || '';
+      document.getElementById('signerTextFieldLabel').value = t.signerTextFieldLabel || '';
+      document.getElementById('initialsEnabled').checked = t.initialsEnabled !== false;
+      document.getElementById('qrInEmail').checked = t.qrInEmail !== false;
+      document.getElementById('reminderDays').value = t.reminderDays || 0;
+      document.getElementById('sequentialSigning').checked = t.sequentialSigning === true;
+      document.getElementById('emailSubject').value = t.emailSubject || 'Please sign: {docName}';
+      document.getElementById('emailBody').value = t.emailBody || 'Hi {signerName}, please review and sign {docName}. Link: {signUrl}';
+      var sched = document.querySelector('input[name="schedule"][value="' + (t.scheduleMinutes || 0) + '"]');
+      if (sched) { sched.checked = true; }
+      var warnEl3 = document.getElementById('notifyOnFinalizeWarn');
+      if (warnEl3) warnEl3.style.display = (t.notifyOnFinalize !== false) ? 'none' : '';
+      renderStep();
+    }
+
+    function fillNameSelect(id, names, selected) {
+      var el = document.getElementById(id);
+      el.innerHTML = '';
+      names.forEach(function (n) {
+        var o = document.createElement('option');
+        o.value = n;
+        o.textContent = n;
+        el.appendChild(o);
+      });
+      if (names.indexOf(selected) !== -1) { el.value = selected; }
+      else if (names.length) { el.value = names[0]; }
+    }
+
+    function fillAllColSelects() {
+      COL_MAP.forEach(function (pair) {
+        fillColSelect(pair[0], state.headers, state.type[pair[1]]);
+      });
+    }
+
+    function fillColSelect(id, headers, selected) {
+      var el = document.getElementById(id);
+      el.innerHTML = '';
+      var opt = document.createElement('option');
+      opt.value = ''; opt.textContent = '(none)';
+      el.appendChild(opt);
+      headers.forEach(function (h, i) {
+        var o = document.createElement('option');
+        o.value = (i + 1);
+        o.textContent = String(h) + ' (col ' + (i + 1) + ')';
+        el.appendChild(o);
+      });
+      var v = String(selected || '');
+      el.value = (el.querySelector('option[value="' + v + '"]')) ? v : '';
+    }
+
+    function detectMode(headers) {
+      var joined = String((headers || []).join('|')).toLowerCase();
+      var markers = ['merged documentsumentsuments status', 'merged documentsumentsuments id', 'merged documentsumentsuments url', 'recipient email'];
+      for (var i = 0; i < markers.length; i++) {
+        if (joined.indexOf(markers[i]) !== -1) return 'template';
+      }
+      return 'standalone';
+    }
+
+    function updateModeDisplay(mode) {
+      state.detectedMode = mode;
+      var istemplate = (mode === 'template');
+      document.getElementById('modeName').textContent = istemplate ? 'Template-based' : 'Standalone';
+      document.getElementById('modeReason').textContent = istemplate
+        ? 'Found Template-based columns (merged documentsumentsumentsuments\u2026 / Recipient Email) — DocuPDF writes the sign links and Template sends the email.'
+        : 'No Template-based columns found — DocuPDF emails the signing links itself.';
+      document.getElementById('modeInfo').style.background = istemplate ? '#e8f0fe' : '#e6f4ea';
+      document.getElementById('modeInfo').style.borderColor = istemplate ? '#c2d8fd' : '#ceead6';
+      document.getElementById('modeInfo').style.color = istemplate ? '#1a73e8' : '#137333';
+      var standalone = !istemplate;
+      document.getElementById('emailFields').style.display = standalone ? '' : 'none';
+      document.getElementById('templateEmailInfo').style.display = standalone ? 'none' : '';
+      document.getElementById('signingRequiredRow').style.display = standalone ? 'none' : '';
+      document.getElementById('rowsFilterFields').style.display = standalone ? 'none' : '';
+      document.getElementById('standaloneRowsNote').style.display = standalone ? '' : 'none';
+      document.getElementById('rowsInstruction').textContent = standalone
+        ? 'Manual pick only — nothing signs automatically.'
+        : 'Which rows should this E-sign work on? Leave it empty for <b>all rows</b> on the sheet.';
+    }
+
+    function toggleHelp() {
+      var box = document.getElementById('helpBox');
+      var showing = box.style.display === 'block';
+      box.style.display = showing ? 'none' : 'block';
+      if (!showing) { box.textContent = HELP[state.currentStep] || ''; }
+    }
+
+    document.getElementById('filterOperator').addEventListener('change', toggleCond);
+    function toggleCond() {
+      document.getElementById('condValueWrapper').style.display =
+        document.getElementById('filterOperator').value === 'CONTAINS' ? '' : 'none';
+    }
+
+    document.getElementById('sheetSelect').addEventListener('change', function () {
+      var name = this.value;
+      if (!name) return;
+      S.run('GET_SHEET_HEADERS_FOR', [name]).then(function (headers) {
+        state.headers = headers || [];
+        updateModeDisplay(detectMode(state.headers));
+        fillAllColSelects();
+      }).catch(function (err) { S.showError(err.message); });
+    });
+
+    function renderStep() {
+      for (var i = 1; i <= totalSteps; i++) {
+        document.getElementById('panelStep' + i).classList.toggle('active', i === state.currentStep);
+      }
+      document.getElementById('wizardTitleDisplay').textContent =
+        'STEP ' + state.currentStep + ' - ' + stepNames[state.currentStep - 1];
+      document.getElementById('backBtn').disabled = (state.currentStep === 1);
+      document.getElementById('nextBtn').style.display = (state.currentStep === totalSteps) ? 'none' : '';
+      var c = document.getElementById('progressDotsContainer');
+      c.innerHTML = '';
+      for (var d = 1; d <= totalSteps; d++) {
+        var dot = document.createElement('span');
+        dot.className = 'dot' + (d === state.currentStep ? ' active' : '');
+        c.appendChild(dot);
+      }
+      var hb = document.getElementById('helpBox');
+      if (hb && hb.style.display !== 'none') { hb.textContent = HELP[state.currentStep] || ''; }
+    }
+
+    function navNext() {
+      var err = validateStep(state.currentStep);
+      if (err) { S.showError(err); return; }
+      if (state.currentStep < totalSteps) { state.currentStep++; renderStep(); }
+    }
+
+    function navBack() {
+      if (state.currentStep > 1) { state.currentStep--; renderStep(); }
+    }
+
+    function validateStep(n) {
+      if (n === 1) {
+        if (!document.getElementById('esignName').value.trim()) return 'Give this E-sign a name (Step 1).';
+      }
+      if (n === 2) {
+        if (!document.getElementById('sheetSelect').value) return 'Choose the sheet that holds the rows (Step 2).';
+      }
+      if (n === 5) {
+        if (!document.getElementById('signingRequiredColumn').value) return 'Map the "Signing Required" column (Step 5).';
+        if (!document.getElementById('signerEmailColumn').value) return 'Map the Party A email column (Step 5).';
+      }
+      if (n === 6) {
+        if (!document.getElementById('linkAColumn').value) return 'Map the "Sign Link - Party A" column (Step 6).';
+        if (!document.getElementById('statusColumn').value) return 'Map the status column (Step 6).';
+      }
+      if (n === 7) {
+        if (state.detectedMode !== 'template') {
+          if (!document.getElementById('emailSubject').value.trim()) return 'Email subject is required in standalone mode (Step 7).';
+          if (!document.getElementById('emailBody').value.trim()) return 'Email body is required in standalone mode (Step 7).';
+        }
+      }
+      return null;
+    }
+
+    function num(id) { return Number(document.getElementById(id).value) || 0; }
+
+    function collect() {
+      var t = {};
+      t.id = state.typeId || state.type.id || '';
+      t.name = document.getElementById('esignName').value.trim();
+      t.dataSheetName = document.getElementById('sheetSelect').value;
+      t.headerRow = 1;
+      t.mode = state.detectedMode || 'standalone';
+      t.filterColumn = num('filterColumn');
+      t.filterOperator = document.getElementById('filterOperator').value;
+      t.filterKeyword = document.getElementById('filterKeyword').value.trim();
+      t.signingRequiredColumn = num('signingRequiredColumn');
+      t.signerEmailColumn = num('signerEmailColumn');
+      t.signerNameColumn = num('signerNameColumn');
+      t.signerADesignationColumn = num('signerADesignationColumn');
+      t.signerBEmailColumn = num('signerBEmailColumn');
+      t.signerBNameColumn = num('signerBNameColumn');
+      t.signerBDesignationColumn = num('signerBDesignationColumn');
+      t.docNameColumn = num('docNameColumn');
+      t.linkAColumn = num('linkAColumn');
+      t.linkBColumn = num('linkBColumn');
+      t.statusColumn = num('statusColumn');
+      t.documentSignedColumn = num('documentSignedColumn');
+      t.signerAStatusColumn = num('signerAStatusColumn');
+      t.signerBStatusColumn = num('signerBStatusColumn');
+      t.outputFolderId = document.getElementById('outputFolderId').value.trim();
+      t.templateFileId = pickedPdfId || document.getElementById('templatePdfInput').value.trim();
+      t.autoSendEmail = document.getElementById('autoSendEmail').checked;
+      t.attachSourcePdf = document.getElementById('attachSourcePdf').checked;
+      t.emailWorkingToSigners = document.getElementById('emailWorkingToSigners') ? document.getElementById('emailWorkingToSigners').checked : true;
+      t.emailFinalToSigners = document.getElementById('emailFinalToSigners') ? document.getElementById('emailFinalToSigners').checked : true;
+      t.notifyOnFinalize = document.getElementById('notifyOnFinalize').checked;
+      var warnEl = document.getElementById('notifyOnFinalizeWarn');
+      if (warnEl) warnEl.style.display = t.notifyOnFinalize ? 'none' : '';
+      t.notifyOwnerEmail = document.getElementById('notifyOwnerEmail').value.trim();
+      t.companyName = document.getElementById('companyName').value.trim();
+      t.replyToEmail = document.getElementById('replyToEmail').value.trim();
+      t.emailSubject = document.getElementById('emailSubject').value.trim();
+      t.emailBody = document.getElementById('emailBody').value.trim();
+      t.slotPlacement = {
+        A: { page: num('placeAPage'), align: document.getElementById('placeAAlign').value, vOffset: Number(document.getElementById('placeAVOffset').value) || 0.85 },
+        B: { page: num('placeBPage'), align: document.getElementById('placeBAlign').value, vOffset: Number(document.getElementById('placeBVOffset').value) || 0.85 }
+      };
+      t.signerTextFieldLabel = document.getElementById('signerTextFieldLabel').value.trim();
+      t.initialsEnabled = document.getElementById('initialsEnabled').checked;
+      t.qrInEmail = document.getElementById('qrInEmail').checked;
+      t.reminderDays = Number(document.getElementById('reminderDays').value) || 0;
+      t.sequentialSigning = document.getElementById('sequentialSigning').checked;
+      t.brandColor = document.getElementById('brandColor').value || '#1a73e8';
+      t.logoUrl = document.getElementById('logoUrl').value.trim();
+      t.esignMode = 'native';
+      t.scheduleMinutes = Number(document.querySelector('input[name="schedule"]:checked').value) || 0;
+      t.shareSourcePdf = true;
+      t.created = state.type.created || 0;
+      return t;
+    }
+
+    function saveType() {
+      S.hideError();
+      var err = validateStep(1) || validateStep(2) || validateStep(5) || validateStep(6) || validateStep(7);
+      if (err) { S.showError(err); return; }
+      S.setBusy('saveBtn', true);
+      S.run('SAVE_ESIGN_TYPE', [collect()]).then(function (res) {
+        if (!res.ok) {
+          S.setBusy('saveBtn', false);
+          S.showError(res.error || 'Could not save the E-sign.');
+          return;
+        }
+        try { google.script.host.close(); } catch (e) { /* dialog may already be closing */ }
+      }).catch(function (err) {
+        S.setBusy('saveBtn', false);
+        S.showError(err.message);
+      });
+    }
+  </script>
+</body>
+
+</html>
