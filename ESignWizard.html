@@ -290,47 +290,6 @@
           <label>Doc name column <span style="color:#5f6368;">(optional)</span></label>
           <select id="docNameColumn"></select>
         </div>
-        <div class="field-row" style="margin-top:8px;">
-          <label>Signature placement <span style="color:#5f6368;">(optional — defaults: last page, center)</span></label>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <label style="flex:1;min-width:110px;">Party A — Page
-              <input type="number" id="placeAPage" min="0" placeholder="0 = last page">
-            </label>
-            <label style="flex:1;min-width:110px;">Party A — Align
-              <select id="placeAAlign">
-                <option value="center">Center</option>
-                <option value="left">Left</option>
-                <option value="right">Right</option>
-              </select>
-            </label>
-            <label style="flex:1;min-width:110px;">Party A — Vertical
-              <select id="placeAVOffset">
-                <option value="0.85">Bottom</option>
-                <option value="0.5">Middle</option>
-                <option value="0.05">Top</option>
-              </select>
-            </label>
-          </div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">
-            <label style="flex:1;min-width:110px;">Party B — Page
-              <input type="number" id="placeBPage" min="0" placeholder="0 = last page">
-            </label>
-            <label style="flex:1;min-width:110px;">Party B — Align
-              <select id="placeBAlign">
-                <option value="center">Center</option>
-                <option value="left">Left</option>
-                <option value="right">Right</option>
-              </select>
-            </label>
-            <label style="flex:1;min-width:110px;">Party B — Vertical
-              <select id="placeBVOffset">
-                <option value="0.85">Bottom</option>
-                <option value="0.5">Middle</option>
-                <option value="0.05">Top</option>
-              </select>
-            </label>
-          </div>
-        </div>
       </div>
 
       <!-- STEP 6: Output & Links -->
@@ -368,9 +327,6 @@
 
       <!-- STEP 7: Email -->
       <div class="step-panel" id="panelStep7">
-        <div id="templateEmailInfo" class="info-box" style="display:none;">
-          Template-based sends the signing email — DocuPDF only writes the sign links into the row. No email template needed.
-        </div>
         <p class="instruction-text" id="emailStepInstruction">Configure the signing email. Use {signerName}, {signerDesignation}, {signerEmail}, {docName}, {signUrl} placeholders.</p>
         <div id="emailFields">
           <label class="check"><input type="checkbox" id="autoSendEmail"> Auto-send the signing email after each job</label>
@@ -615,14 +571,6 @@
       document.getElementById('outputFolderId').value = t.outputFolderId || '';
       document.getElementById('templatePdfInput').value = t.templateFileId || '';
       pickedPdfId = t.templateFileId || '';
-      var pl = t.slotPlacement || {};
-      var pa = pl.A || {}, pb = pl.B || {};
-      document.getElementById('placeAPage').value = pa.page || 0;
-      document.getElementById('placeAAlign').value = pa.align || 'center';
-      document.getElementById('placeAVOffset').value = String(pa.vOffset || 0.85);
-      document.getElementById('placeBPage').value = pb.page || 0;
-      document.getElementById('placeBAlign').value = pb.align || 'center';
-      document.getElementById('placeBVOffset').value = String(pb.vOffset || 0.85);
       document.getElementById('autoSendEmail').checked = t.autoSendEmail !== false;
       document.getElementById('attachSourcePdf').checked = t.attachSourcePdf !== false;
       document.getElementById('notifyOnFinalize').checked = t.notifyOnFinalize !== false;
@@ -694,7 +642,6 @@
       var istemplate = (mode === 'template');
       var standalone = !istemplate;
       document.getElementById('emailFields').style.display = standalone ? '' : 'none';
-      document.getElementById('templateEmailInfo').style.display = standalone ? 'none' : '';
       document.getElementById('signingRequiredRow').style.display = standalone ? 'none' : '';
       document.getElementById('rowsFilterFields').style.display = standalone ? 'none' : '';
       document.getElementById('standaloneRowsNote').style.display = standalone ? '' : 'none';
@@ -820,10 +767,6 @@
       t.replyToEmail = document.getElementById('replyToEmail').value.trim();
       t.emailSubject = document.getElementById('emailSubject').value.trim();
       t.emailBody = document.getElementById('emailBody').value.trim();
-      t.slotPlacement = {
-        A: { page: num('placeAPage'), align: document.getElementById('placeAAlign').value, vOffset: Number(document.getElementById('placeAVOffset').value) || 0.85 },
-        B: { page: num('placeBPage'), align: document.getElementById('placeBAlign').value, vOffset: Number(document.getElementById('placeBVOffset').value) || 0.85 }
-      };
       t.signerTextFieldLabel = document.getElementById('signerTextFieldLabel').value.trim();
       t.initialsEnabled = document.getElementById('initialsEnabled').checked;
       t.qrInEmail = document.getElementById('qrInEmail').checked;
