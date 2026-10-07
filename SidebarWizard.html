@@ -295,9 +295,7 @@
           var html = '';
           for (var i = 0; i < types.length; i++) {
             var t = types[i];
-            var modeBadge = t.mode === 'standalone'
-              ? '<span class="type-badge type-standalone">📄 Standalone</span>'
-              : '<span class="type-badge type-template">🔗 Template PDF</span>';
+            var modeBadge = '<span class="type-badge type-standalone">📄 E-sign</span>';
             if (t.enabled !== true) {
               modeBadge += ' <span class="type-badge type-off">Paused</span>';
             }
@@ -311,14 +309,12 @@
               return m;
             });
             var filterTxt = t.filterKeyword ? ' · rows: "' + t.filterKeyword + '"' : '';
-            var isStandalone = t.mode === 'standalone';
-            var runBtn = isStandalone
-              ? '<button class="btn-icon btn-sign" onclick="openInPerson(\'' + t.id + '\')">✍️ Sign a row</button>'
-              : '<button class="btn-icon btn-run" onclick="runType(\'' + t.id + '\')">▶️ Run</button>';
+            var runBtn = '<button class="btn-icon btn-sign" onclick="openInPerson(\'' + t.id + '\')">✍️ Sign a row</button>' +
+              '<button class="btn-icon btn-run" onclick="runType(\'' + t.id + '\')">▶️ Run</button>';
             html +=
               '<div class="type-card" data-id="' + t.id + '">' +
               '<div class="type-header"><span class="type-name">' + safeName + '</span>' + modeBadge + '</div>' +
-              '<div class="type-meta">' + (isStandalone ? 'Manual — pick a row to sign' : 'Schedule: ' + schedule + filterTxt) + '</div>' +
+              '<div class="type-meta">Schedule: ' + schedule + filterTxt + '</div>' +
               '<div class="type-actions">' +
               '<button class="btn-icon" onclick="editType(\'' + t.id + '\')">✏️ Edit</button>' +
               runBtn +
