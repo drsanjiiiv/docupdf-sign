@@ -234,7 +234,7 @@ function SAVE_ESIGN_TYPE(typeObj) {
       return { ok: false, error: 'Give this E-sign a name.' };
     }
     if (typeObj.sourceMode !== 'documail' && typeObj.sourceMode !== 'standalone') {
-      return { ok: false, error: 'Choose a source mode.' };
+      typeObj.sourceMode = 'standalone';
     }
     if (!typeObj.dataSheetName) {
       return { ok: false, error: 'Choose the sheet that holds the rows.' };

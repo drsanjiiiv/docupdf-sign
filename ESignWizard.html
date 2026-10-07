@@ -746,6 +746,7 @@
       t.dataSheetName = document.getElementById('sheetSelect').value;
       t.headerRow = 1;
       t.mode = state.detectedMode || 'standalone';
+      t.sourceMode = 'standalone';
       t.filterColumn = num('filterColumn');
       t.filterOperator = document.getElementById('filterOperator').value;
       t.filterKeyword = document.getElementById('filterKeyword').value.trim();
