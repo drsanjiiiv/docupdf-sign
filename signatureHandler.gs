@@ -54,6 +54,7 @@ async function PLACE_SIGNATURE_ON_PDF(payload) {
       if (record.finalized) {
         return { ok: false, error: 'This document has already been signed and finalized.' };
       }
+      var slotIndex = state.slotIndex;
       // Sequential enforcement
       var isSeqEnf = (record.signing && record.signing.sequentialSigning === true) && record.slots.length > 1;
       if (isSeqEnf && slotIndex > 0) {
@@ -61,7 +62,6 @@ async function PLACE_SIGNATURE_ON_PDF(payload) {
           return { ok: false, error: 'Party A must sign first (sequential signing).' };
         }
       }
-      var slotIndex = state.slotIndex;
       var slot = record.slots[slotIndex];
 
       // Persist signature as an app-created Drive temp file.
