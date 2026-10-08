@@ -202,6 +202,7 @@
     }
 
     .status-line { font-size: 11px; color: #5f6368; margin: 8px 0 0 0; }
+    .sheet-mode-line { margin: 6px 0 0 0; font-size: 11px; color: #5f6368; }
   </style>
 </head>
 
@@ -212,6 +213,7 @@
       <button class="help-btn" title="What is this?" onclick="toggleHelp()">?</button>
     </div>
     <p>E-sign types for this spreadsheet</p>
+    <p id="sheetModeLine" class="sheet-mode-line">🔄 Automatic — one template for all rows</p>
     <p style="margin: 8px 0 0 0; font-size: 11px; color: #9aa0a6;">
       🔒 Data stays in your Google Workspace, nothing stored externally.
       <a href="https://apps.pwmai.com/privacy-policy/" target="_blank">Privacy Policy</a>
@@ -256,6 +258,15 @@
       p.style.display = showing ? 'none' : 'block';
     }
 
+    function updateModeLine() {
+      var el = document.getElementById('sheetModeLine');
+      if (!el) return;
+      var m = (sidebarMode === 'manual') ? 'manual' : 'automatic';
+      el.innerHTML = (m === 'manual')
+        ? '<b>✍️ Manual</b> — one document per row'
+        : '<b>🔄 Automatic</b> — one template for all rows';
+    }
+
     function copyType(id) {
       google.script.run
         .withSuccessHandler(function (res) {
@@ -282,6 +293,7 @@
             sidebarMode = (st.sheetMode === 'manual') ? 'manual' : 'automatic';
             sidebarVersion = st.sidebarVersion || '';
           }
+          updateModeLine();
           fetchTypes(container);
         })
         .withFailureHandler(function () { fetchTypes(container); })
@@ -424,6 +436,7 @@
           if (mode !== sidebarMode || ver !== sidebarVersion) {
             sidebarMode = mode;
             sidebarVersion = ver;
+            updateModeLine();
             loadTypes();
           }
         })
