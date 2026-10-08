@@ -8,6 +8,7 @@
 
 var APP_NAME = 'DocuPDF Sign';
 var CONFIG_KEY = 'DOCUPDF_SIGN_PRO_CONFIG';
+var SHEET_MODE_KEY = 'DOCUPDF_MODE_';
 var JOB_PREFIX = 'DPD_JOB_';
 var JOB_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7-day expiry
 
@@ -110,9 +111,14 @@ function RUN_SETUP_MENU() {
   var res = SETUP_SHEET();
   var ui = SpreadsheetApp.getUi();
   if (res.ok) {
-    ui.alert('DocuPDF Sign — Setup complete\n\nSource mode: ' + res.mode +
+    var modeLabel = (res.sheetMode === 'manual')
+      ? 'Manual (one document per row)'
+      : 'Automatic (one template for all rows)';
+    ui.alert('DocuPDF Sign — Setup complete. Mode: ' + modeLabel + '.' +
       (res.added.length ? '\n\nColumns added:\n' + res.added.join(', ') : '') +
       '\n\nOpen the E-sign Engine to create your first E-sign.');
+  } else if (res.cancelled) {
+    ui.alert('Setup cancelled.');
   } else {
     ui.alert('Setup failed: ' + (res.error || 'unknown error'));
   }
@@ -215,7 +221,7 @@ function _ensureInitiatedOrPrompt() {
     }
     var res = SETUP_SHEET();
     if (!res.ok) {
-      ui.alert('Setup failed: ' + (res.error || 'unknown error'));
+      ui.alert(res.cancelled ? 'Setup cancelled.' : 'Setup failed: ' + (res.error || 'unknown error'));
       return false;
     }
     return true;
@@ -1105,6 +1111,26 @@ function saveConfig(cfg) {
   }
 }
 
+function _getSheetMode(ssId) {
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty(SHEET_MODE_KEY + ssId);
+    return (raw === 'manual') ? 'manual' : 'automatic';
+  } catch (err) {
+    Logger.log('_getSheetMode error: %s', err.message);
+    return 'automatic';
+  }
+}
+
+function _setSheetMode(ssId, mode) {
+  var value = (mode === 'manual') ? 'manual' : 'automatic';
+  try {
+    PropertiesService.getScriptProperties().setProperty(SHEET_MODE_KEY + ssId, value);
+  } catch (err) {
+    Logger.log('_setSheetMode error: %s', err.message);
+  }
+  return value;
+}
+
 function _defaultConfig() {
   return {
     dataSheetName: '',
@@ -1445,6 +1471,50 @@ function _ensurePdfLinkColumns(sheet, cfg) {
   return { added: added };
 }
 
+var SETUP_COLUMNS_AUTOMATIC = [
+  COL_HEADER.signingRequired,
+  COL_HEADER.signerAEmail,
+  COL_HEADER.signerAName,
+  COL_HEADER.signerACompany,
+  COL_HEADER.signerADesignation,
+  COL_HEADER.signerBEmail,
+  COL_HEADER.signerBName,
+  COL_HEADER.signerBCompany,
+  COL_HEADER.signerBDesignation,
+  COL_HEADER.status,
+  COL_HEADER.documentSigned,
+  COL_HEADER.signerAStatus,
+  COL_HEADER.signerADeclineReason,
+  COL_HEADER.signerBStatus,
+  COL_HEADER.signerBDeclineReason,
+  COL_HEADER.linkA,
+  COL_HEADER.linkB,
+  COL_HEADER.workingPdfLink,
+  COL_HEADER.signedPdfLink
+];
+
+var SETUP_COLUMNS_MANUAL = [
+  COL_HEADER.signerAEmail,
+  COL_HEADER.signerAName,
+  COL_HEADER.signerACompany,
+  COL_HEADER.signerADesignation,
+  COL_HEADER.signerBEmail,
+  COL_HEADER.signerBName,
+  COL_HEADER.signerBCompany,
+  COL_HEADER.signerBDesignation,
+  COL_HEADER.sourceDoc,
+  COL_HEADER.status,
+  COL_HEADER.documentSigned,
+  COL_HEADER.signerAStatus,
+  COL_HEADER.signerADeclineReason,
+  COL_HEADER.signerBStatus,
+  COL_HEADER.signerBDeclineReason,
+  COL_HEADER.linkA,
+  COL_HEADER.linkB,
+  COL_HEADER.workingPdfLink,
+  COL_HEADER.signedPdfLink
+];
+
 /**
  * One-click setup. Detects DocuMail mode (Merged Doc columns present) vs
  * standalone, creates DocuPDF's own columns, and stores config.
@@ -1453,7 +1523,7 @@ function _ensurePdfLinkColumns(sheet, cfg) {
  *  - standalone: full DocuPDF column set, appended in order.
  * Output columns ('DocuPDF Status', 'Sign Link - Party A/B') always go to the
  * far right so DocuMail's block is never interrupted.
- * @return {Object} { ok, mode, added:[], columns:{header:colNumber} }
+ * @return {Object} { ok, sheetMode, mode, added:[], columns:{header:colNumber} }
  */
 function SETUP_SHEET() {
   try {
@@ -1465,6 +1535,53 @@ function SETUP_SHEET() {
     var cfg = readConfig();
     cfg.dataSheetName = sheet.getName();
     cfg.headerRow = 1;
+
+    var ssId = ss.getId();
+    var ui = SpreadsheetApp.getUi();
+    var dataEndRow = sheet.getLastRow();
+    var reset = false;
+
+    if (_sheetHasDataBelowHeader(sheet)) {
+      var guard = ui.alert('DocuPDF Sign — Setup',
+        'There is data in this sheet. Setting up columns again will erase all data. Are you sure?\n\n' +
+        'Yes = Reset (clear DocuPDF\'s columns and set up again)\n' +
+        'No = Cancel (leave everything unchanged)',
+        ui.ButtonSet.YES_NO);
+      if (guard !== ui.Button.YES) {
+        return { ok: false, cancelled: true, error: 'Setup cancelled.' };
+      }
+      reset = true;
+    }
+
+    var storedMode = null;
+    try {
+      var storedRaw = PropertiesService.getScriptProperties().getProperty(SHEET_MODE_KEY + ssId);
+      if (storedRaw === 'automatic' || storedRaw === 'manual') {
+        storedMode = storedRaw;
+      }
+    } catch (e) {
+      storedMode = null;
+    }
+
+    var sheetMode = storedMode;
+    if (!sheetMode || reset) {
+      var pick = ui.alert('DocuPDF Sign — Setup',
+        'How should this sheet create signing requests?\n' +
+        '• Automatic — one template for all rows (e.g. a batch of similar NDAs or MOUs)\n' +
+        '• Manual — a different document for each row\n\n' +
+        'Yes = Automatic · No = Manual · Cancel = decide later (no changes)',
+        ui.ButtonSet.YES_NO_CANCEL);
+      if (pick === ui.Button.CANCEL) {
+        return { ok: false, cancelled: true, error: 'Setup cancelled.' };
+      }
+      sheetMode = (pick === ui.Button.YES) ? 'automatic' : 'manual';
+      _setSheetMode(ssId, sheetMode);
+    }
+
+    var order = (sheetMode === 'manual') ? SETUP_COLUMNS_MANUAL : SETUP_COLUMNS_AUTOMATIC;
+    if (reset) {
+      _clearDocuPDFColumns(sheet, order);
+    }
 
     var sync = {found:false,statusCol:0,idCol:0,urlCol:0};
     var mode = (sync.statusCol || sync.idCol || sync.urlCol) ? 'documail' : 'standalone';
@@ -1511,31 +1628,12 @@ function SETUP_SHEET() {
       ensureHeader(COL_HEADER.workingPdfLink);
       ensureHeader(COL_HEADER.signedPdfLink);
     } else {
-      var order = [
-        COL_HEADER.signerAName,
-        COL_HEADER.signerADesignation,
-        COL_HEADER.signerACompany,
-        COL_HEADER.signerAEmail,
-        COL_HEADER.signerBName,
-        COL_HEADER.signerBDesignation,
-        COL_HEADER.signerBCompany,
-        COL_HEADER.signerBEmail,
-        COL_HEADER.status,
-        COL_HEADER.documentSigned,
-        COL_HEADER.signerAStatus,
-        COL_HEADER.signerADeclineReason,
-        COL_HEADER.signerBStatus,
-        COL_HEADER.signerBDeclineReason,
-        COL_HEADER.linkA,
-        COL_HEADER.linkB,
-        COL_HEADER.workingPdfLink,
-        COL_HEADER.signedPdfLink
-      ];
       order.forEach(ensureHeader);
 
       // Reorder the existing columns to the sequence above, but only when the
       // sheet holds NO unknown columns (a pure DocuPDF sheet) — otherwise
-      // leaving user data columns alone is safer.
+      // leaving user data columns alone is safer — and only on a Reset, so a
+      // plain re-run keeps the sheet's current column order.
       var knownMap = {};
       order.forEach(function (n) { knownMap[String(n).trim().toLowerCase()] = true; });
       [COL_HEADER.signingRequired, COL_HEADER.sourceDoc, COL_HEADER.docName].forEach(function (n) {
@@ -1545,7 +1643,7 @@ function SETUP_SHEET() {
         var t = String(h).trim();
         return !t || knownMap[t.toLowerCase()];
       });
-      if (allKnown) {
+      if (allKnown && reset) {
         try {
           for (var oi = 0; oi < order.length; oi++) {
             var row1 = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -1566,13 +1664,16 @@ function SETUP_SHEET() {
     // Yes/No dropdown on 'Signing Required' (new column only: default 'No').
     var srIndex = findCol(COL_HEADER.signingRequired);
     if (srIndex) {
-      var lastRow = Math.max(sheet.getLastRow(), 2);
-      var dataRange = sheet.getRange(2, srIndex, lastRow - 1, 1);
-      dataRange.setDataValidation(
-        SpreadsheetApp.newDataValidation().requireValueInList(['Yes', 'No'], true).setAllowInvalid(false).build()
-      );
-      if (added.indexOf(COL_HEADER.signingRequired) !== -1) {
-        sheet.getRange(2, srIndex, lastRow - 1, 1).setValue('No');
+      var validation = SpreadsheetApp.newDataValidation()
+        .requireValueInList(['Yes', 'No'], true).setAllowInvalid(false).build();
+      if (dataEndRow >= 2) {
+        var dataRange = sheet.getRange(2, srIndex, dataEndRow - 1, 1);
+        dataRange.setDataValidation(validation);
+        if (added.indexOf(COL_HEADER.signingRequired) !== -1) {
+          dataRange.setValue('No');
+        }
+      } else {
+        sheet.getRange(2, srIndex, 1, 1).setDataValidation(validation);
       }
       sheet.getRange(1, srIndex).setFontWeight('bold').setBackground('#FCE8E6');
     }
@@ -1607,6 +1708,12 @@ function SETUP_SHEET() {
     if (!('autoSendEmail' in cfg)) {
       cfg.autoSendEmail = (mode === 'standalone');
     }
+    if (!findCol(COL_HEADER.signingRequired)) {
+      cfg.signingRequiredColumn = 0;
+    }
+    if (!findCol(COL_HEADER.sourceDoc)) {
+      cfg.sourceColumn = 0;
+    }
     cfg = _resolveConfigColumns(sheet, cfg);
     saveConfig(cfg);
 
@@ -1616,13 +1723,85 @@ function SETUP_SHEET() {
       docId: sheet.getSheetId(),
       docName: sheet.getName(),
       status: 'Configured',
-      details: 'Source mode: ' + mode
+      details: 'Sheet mode: ' + sheetMode + '; source mode: ' + mode
     });
 
-    return { ok: true, mode: mode, added: added, columns: _columnSummary(sheet, cfg) };
+    return { ok: true, sheetMode: sheetMode, mode: mode, added: added, columns: _columnSummary(sheet, cfg) };
   } catch (err) {
     Logger.log('SETUP_SHEET error: %s', err.message);
     return { ok: false, error: err.message };
+  }
+}
+
+function _sheetHasDataBelowHeader(sheet) {
+  try {
+    if (!sheet) {
+      return true;
+    }
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) {
+      return false;
+    }
+    var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    for (var r = 0; r < values.length; r++) {
+      for (var c = 0; c < values[r].length; c++) {
+        var cell = values[r][c];
+        if (cell !== '' && cell !== null && cell !== undefined) {
+          return true;
+        }
+      }
+    }
+    return false;
+  } catch (err) {
+    Logger.log('_sheetHasDataBelowHeader warning: %s', err.message);
+    return true;
+  }
+}
+
+function _clearDocuPDFColumns(sheet, order) {
+  try {
+    if (!sheet) {
+      return;
+    }
+    var lastCol = sheet.getLastColumn();
+    var endRow = sheet.getLastRow();
+    if (lastCol < 1) {
+      return;
+    }
+    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+    var managed = {};
+    SETUP_COLUMNS_AUTOMATIC.concat(SETUP_COLUMNS_MANUAL).forEach(function (n) {
+      managed[String(n).trim().toLowerCase()] = true;
+    });
+    var keep = {};
+    (order || []).forEach(function (n) {
+      keep[String(n).trim().toLowerCase()] = true;
+    });
+    var toDelete = [];
+    for (var i = headers.length - 1; i >= 0; i--) {
+      var key = String(headers[i]).trim().toLowerCase();
+      if (!key || !managed[key]) {
+        continue;
+      }
+      if (endRow >= 2) {
+        sheet.getRange(2, i + 1, endRow - 1, 1).clearContent();
+      }
+      if (!keep[key]) {
+        toDelete.push(i + 1);
+      }
+    }
+    for (var d = 0; d < toDelete.length; d++) {
+      try {
+        if (sheet.getLastColumn() > 1) {
+          sheet.deleteColumn(toDelete[d]);
+        }
+      } catch (e) {
+        Logger.log('_clearDocuPDFColumns delete warning: %s', e.message);
+      }
+    }
+  } catch (err) {
+    Logger.log('_clearDocuPDFColumns warning: %s', err.message);
   }
 }
 
@@ -1692,7 +1871,7 @@ function _findHeaderCol(sheet, name) {
 
 /**
  * Public wrapper for the sidebar: returns setup/sync state.
- * @return {Object} { ok, mode, autoSync, lastSync, dataSheetName, columns }
+ * @return {Object} { ok, mode, sheetMode, autoSync, lastSync, dataSheetName, columns }
  */
 function GET_SETUP_STATUS() {
   try {
@@ -1703,6 +1882,7 @@ function GET_SETUP_STATUS() {
     return {
       ok: true,
       mode: cfg.sourceMode,
+      sheetMode: _getSheetMode(ss.getId()),
       autoSync: !!cfg.autoSync,
       lastSync: cfg.lastSync || 0,
       dataSheetName: cfg.dataSheetName,
