@@ -112,11 +112,12 @@ function RUN_SETUP_MENU() {
   var ui = SpreadsheetApp.getUi();
   if (res.ok) {
     var modeLabel = (res.sheetMode === 'manual')
-      ? 'Manual (one document per row)'
-      : 'Automatic (one template for all rows)';
-    ui.alert('DocuPDF Sign — Setup complete. Mode: ' + modeLabel + '.' +
-      (res.added.length ? '\n\nColumns added:\n' + res.added.join(', ') : '') +
-      '\n\nOpen the E-sign Engine to create your first E-sign.');
+      ? '✍️ Manual (one document per row)'
+      : '🔄 Automatic (one template for all rows)';
+    ui.alert('✅ DocuPDF Sign — Setup complete\n\n' +
+      'Mode: ' + modeLabel + '\n' +
+      (res.added.length ? '\n📊 Columns added:\n   ' + res.added.join(', ') + '\n' : '') +
+      '\n▶️ Open the E-sign Engine to create your first E-sign.');
   } else if (res.cancelled) {
     ui.alert('Setup cancelled.');
   } else {
@@ -1111,9 +1112,9 @@ function saveConfig(cfg) {
   }
 }
 
-function _getSheetMode(ssId) {
+function _getSheetMode(ssId, sheetId) {
   try {
-    var raw = PropertiesService.getScriptProperties().getProperty(SHEET_MODE_KEY + ssId);
+    var raw = PropertiesService.getScriptProperties().getProperty(SHEET_MODE_KEY + ssId + '_' + sheetId);
     return (raw === 'manual') ? 'manual' : 'automatic';
   } catch (err) {
     Logger.log('_getSheetMode error: %s', err.message);
@@ -1121,10 +1122,10 @@ function _getSheetMode(ssId) {
   }
 }
 
-function _setSheetMode(ssId, mode) {
+function _setSheetMode(ssId, sheetId, mode) {
   var value = (mode === 'manual') ? 'manual' : 'automatic';
   try {
-    PropertiesService.getScriptProperties().setProperty(SHEET_MODE_KEY + ssId, value);
+    PropertiesService.getScriptProperties().setProperty(SHEET_MODE_KEY + ssId + '_' + sheetId, value);
   } catch (err) {
     Logger.log('_setSheetMode error: %s', err.message);
   }
@@ -1537,15 +1538,21 @@ function SETUP_SHEET() {
     cfg.headerRow = 1;
 
     var ssId = ss.getId();
+    var sheetId = sheet.getSheetId();
     var ui = SpreadsheetApp.getUi();
     var dataEndRow = sheet.getLastRow();
     var reset = false;
 
     if (_sheetHasDataBelowHeader(sheet)) {
-      var guard = ui.alert('DocuPDF Sign — Setup',
-        'There is data in this sheet. Setting up columns again will erase all data. Are you sure?\n\n' +
-        'Yes = Reset (clear DocuPDF\'s columns and set up again)\n' +
-        'No = Cancel (leave everything unchanged)',
+      var guard = ui.alert('⚠️ DocuPDF Sign — Sheet has data',
+        'This sheet already contains data.\n\n' +
+        'Setting up columns again will erase all\n' +
+        'data from DocuPDF\'s columns and rebuild them.\n\n' +
+        'Your own columns (name, email, custom fields)\n' +
+        'are never touched.\n\n' +
+        '─────────────────────────────────\n\n' +
+        'Yes = 🔄 Reset and rebuild\n' +
+        'No  = ❌ Cancel — leave everything as-is',
         ui.ButtonSet.YES_NO);
       if (guard !== ui.Button.YES) {
         return { ok: false, cancelled: true, error: 'Setup cancelled.' };
@@ -1555,7 +1562,7 @@ function SETUP_SHEET() {
 
     var storedMode = null;
     try {
-      var storedRaw = PropertiesService.getScriptProperties().getProperty(SHEET_MODE_KEY + ssId);
+      var storedRaw = PropertiesService.getScriptProperties().getProperty(SHEET_MODE_KEY + ssId + '_' + sheetId);
       if (storedRaw === 'automatic' || storedRaw === 'manual') {
         storedMode = storedRaw;
       }
@@ -1565,17 +1572,22 @@ function SETUP_SHEET() {
 
     var sheetMode = storedMode;
     if (!sheetMode || reset) {
-      var pick = ui.alert('DocuPDF Sign — Setup',
-        'How should this sheet create signing requests?\n' +
-        '• Automatic — one template for all rows (e.g. a batch of similar NDAs or MOUs)\n' +
-        '• Manual — a different document for each row\n\n' +
-        'Yes = Automatic · No = Manual · Cancel = decide later (no changes)',
+      var pick = ui.alert('📄 DocuPDF Sign — Setup',
+        'How should this sheet create signing requests?\n\n' +
+        '🔄  Automatic — one template for all rows\n' +
+        '     (e.g. a batch of similar NDAs or MOUs)\n\n' +
+        '✍️  Manual — a different document for each row\n' +
+        '     (pick each row\'s file when you create the job)\n\n' +
+        '─────────────────────────────────\n\n' +
+        'Yes  = 🔄 Automatic\n' +
+        'No   = ✍️ Manual\n' +
+        'Cancel = ⏸ Decide later (no changes)',
         ui.ButtonSet.YES_NO_CANCEL);
       if (pick === ui.Button.CANCEL) {
         return { ok: false, cancelled: true, error: 'Setup cancelled.' };
       }
       sheetMode = (pick === ui.Button.YES) ? 'automatic' : 'manual';
-      _setSheetMode(ssId, sheetMode);
+      _setSheetMode(ssId, sheetId, sheetMode);
     }
 
     var order = (sheetMode === 'manual') ? SETUP_COLUMNS_MANUAL : SETUP_COLUMNS_AUTOMATIC;
@@ -1882,7 +1894,7 @@ function GET_SETUP_STATUS() {
     return {
       ok: true,
       mode: cfg.sourceMode,
-      sheetMode: _getSheetMode(ss.getId()),
+      sheetMode: _getSheetMode(ss.getId(), sheet ? sheet.getSheetId() : 0),
       autoSync: !!cfg.autoSync,
       lastSync: cfg.lastSync || 0,
       dataSheetName: cfg.dataSheetName,
