@@ -222,7 +222,8 @@
     <b>What is an E-sign type?</b><br>
     A signing workflow for a group of rows — e.g. <i>MOU</i>, <i>Invoice</i>, <i>PO</i>. One sheet can hold many types.<br><br>
     <b>Buttons on each type</b><br>
-    <b>▶️ Run</b> — check the rows now and create signing jobs.<br>
+    <b>▶️ Run</b> — Automatic tabs: scan rows now and create jobs for eligible rows.<br>
+    <b>✍️ Sign single row</b> — Manual tabs: pick a row and create its job.<br>
     <b>✏️ Edit</b> — change its configuration.<br>
     <b>⏸ Pause</b> — stop it from running automatically (resume later).<br>
     <b>📋 Copy</b> — duplicate the type (e.g. for another sheet/rows).<br>
@@ -246,7 +247,8 @@
   </div>
 
   <script>
-    var lastVersion = '';
+    var sidebarMode = 'automatic';
+    var sidebarVersion = '';
 
     function toggleHelp() {
       var p = document.getElementById('helpPanel');
@@ -274,6 +276,19 @@
     function loadTypes() {
       var container = document.getElementById('typesList');
       container.innerHTML = '<div class="loading-types">⏳ Loading E-sign types...</div>';
+      google.script.run
+        .withSuccessHandler(function (st) {
+          if (st && st.ok !== false) {
+            sidebarMode = (st.sheetMode === 'manual') ? 'manual' : 'automatic';
+            sidebarVersion = st.sidebarVersion || '';
+          }
+          fetchTypes(container);
+        })
+        .withFailureHandler(function () { fetchTypes(container); })
+        .GET_SETUP_STATUS();
+    }
+
+    function fetchTypes(container) {
       google.script.run
         .withSuccessHandler(function (res) {
           if (!res || res.ok === false) {
@@ -309,8 +324,9 @@
               return m;
             });
             var filterTxt = t.filterKeyword ? ' · rows: "' + t.filterKeyword + '"' : '';
-            var runBtn = '<button class="btn-icon btn-sign" onclick="openInPerson(\'' + t.id + '\')">✍️ Sign a row</button>' +
-              '<button class="btn-icon btn-run" onclick="runType(\'' + t.id + '\')">▶️ Run</button>';
+            var runBtn = (sidebarMode === 'manual')
+              ? '<button class="btn-icon btn-sign" onclick="openInPerson(\'' + t.id + '\')">✍️ Sign single row</button>'
+              : '<button class="btn-icon btn-run" onclick="runType(\'' + t.id + '\')">▶️ Run</button>';
             html +=
               '<div class="type-card" data-id="' + t.id + '">' +
               '<div class="type-header"><span class="type-name">' + safeName + '</span>' + modeBadge + '</div>' +
@@ -401,14 +417,18 @@
 
     function checkForServerRefresh() {
       google.script.run
-        .withSuccessHandler(function (signal) {
-          if (signal && signal !== lastVersion) {
-            lastVersion = signal;
+        .withSuccessHandler(function (st) {
+          if (!st || st.ok === false) return;
+          var mode = (st.sheetMode === 'manual') ? 'manual' : 'automatic';
+          var ver = st.sidebarVersion || '';
+          if (mode !== sidebarMode || ver !== sidebarVersion) {
+            sidebarMode = mode;
+            sidebarVersion = ver;
             loadTypes();
           }
         })
         .withFailureHandler(function () {})
-        .GET_SIDEBAR_REFRESH();
+        .GET_SETUP_STATUS();
     }
 
     window.addEventListener('message', function (event) {

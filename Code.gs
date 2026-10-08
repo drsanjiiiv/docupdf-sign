@@ -1738,6 +1738,7 @@ function SETUP_SHEET() {
       details: 'Sheet mode: ' + sheetMode + '; source mode: ' + mode
     });
 
+    _bumpSidebarVersion();
     return { ok: true, sheetMode: sheetMode, mode: mode, added: added, columns: _columnSummary(sheet, cfg) };
   } catch (err) {
     Logger.log('SETUP_SHEET error: %s', err.message);
@@ -1883,7 +1884,7 @@ function _findHeaderCol(sheet, name) {
 
 /**
  * Public wrapper for the sidebar: returns setup/sync state.
- * @return {Object} { ok, mode, sheetMode, autoSync, lastSync, dataSheetName, columns }
+ * @return {Object} { ok, mode, sheetMode, sidebarVersion, autoSync, lastSync, dataSheetName, columns }
  */
 function GET_SETUP_STATUS() {
   try {
@@ -1894,7 +1895,8 @@ function GET_SETUP_STATUS() {
     return {
       ok: true,
       mode: cfg.sourceMode,
-      sheetMode: _getSheetMode(ss.getId(), sheet ? sheet.getSheetId() : 0),
+      sheetMode: _getSheetMode(ss.getId(), ss.getActiveSheet().getSheetId()),
+      sidebarVersion: PropertiesService.getScriptProperties().getProperty(SIDEBAR_VERSION_KEY + ss.getId()) || '',
       autoSync: !!cfg.autoSync,
       lastSync: cfg.lastSync || 0,
       dataSheetName: cfg.dataSheetName,
