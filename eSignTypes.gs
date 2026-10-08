@@ -199,6 +199,7 @@ function GET_ESIGN_TYPE(typeId) {
       ok: true,
       type: type,
       headers: headers,
+      sheetMode: _getSheetMode(ss.getId(), sheet ? sheet.getSheetId() : 0),
       activeSheet: ss.getActiveSheet() ? ss.getActiveSheet().getName() : '',
       sheets: ss.getSheets().map(function (s) { return s.getName(); })
     };
@@ -213,12 +214,16 @@ function GET_SHEET_HEADERS_FOR(sheetName) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = sheetName ? ss.getSheetByName(sheetName) : ss.getActiveSheet();
-    if (!sheet) return [];
+    if (!sheet) return { headers: [], sheetMode: 'automatic' };
     var lastCol = sheet.getLastColumn();
-    return lastCol >= 1 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+    if (lastCol < 1) return { headers: [], sheetMode: 'automatic' };
+    return {
+      headers: sheet.getRange(1, 1, 1, lastCol).getValues()[0],
+      sheetMode: _getSheetMode(ss.getId(), sheet.getSheetId())
+    };
   } catch (err) {
     Logger.log('GET_SHEET_HEADERS_FOR error: %s', err.message);
-    return [];
+    return { headers: [], sheetMode: 'automatic' };
   }
 }
 
@@ -239,7 +244,10 @@ function SAVE_ESIGN_TYPE(typeObj) {
     if (!typeObj.dataSheetName) {
       return { ok: false, error: 'Choose the sheet that holds the rows.' };
     }
-    if (!Number(typeObj.signingRequiredColumn)) {
+    var modeSS = SpreadsheetApp.getActiveSpreadsheet();
+    var modeSheet = modeSS.getSheetByName(typeObj.dataSheetName);
+    var sheetMode = _getSheetMode(modeSS.getId(), modeSheet ? modeSheet.getSheetId() : 0);
+    if (sheetMode !== 'manual' && !Number(typeObj.signingRequiredColumn)) {
       return { ok: false, error: 'Map the "Signing Required" column (rows gated on Yes/No).' };
     }
     if (typeObj.sourceMode === 'standalone' && !Number(typeObj.signerEmailColumn)) {

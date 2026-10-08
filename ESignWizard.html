@@ -500,7 +500,8 @@
     }
     var totalSteps = 8;
     var stepNames = ['NAME', 'SHEET', 'PDF', 'ROWS / FILTER', 'SIGNERS', 'OUTPUT &amp; LINKS', 'EMAIL', 'SCHEDULE'];
-    var state = { typeId: '', type: null, headers: [], activeSheet: '', detectedMode: 'standalone', currentStep: 1 };
+    var state = { typeId: '', type: null, headers: [], activeSheet: '', detectedMode: 'standalone', currentStep: 1, sheetMode: 'automatic' };
+    var visibleSteps = [1, 2, 3, 4, 5, 6, 7, 8];
 
     var HELP = {
       1: 'Give this E-sign a name so you can find it in the sidebar.\n' +
@@ -566,6 +567,7 @@
         state.type = res.type || {};
         state.headers = res.headers || [];
         state.activeSheet = res.activeSheet || '';
+        state.sheetMode = res.sheetMode || 'automatic';
         populate(res.sheets || []);
       }).catch(function (err) { S.showError(err.message); });
     }
@@ -602,6 +604,7 @@
       if (sched) { sched.checked = true; }
       var warnEl3 = document.getElementById('notifyOnFinalizeWarn');
       if (warnEl3) warnEl3.style.display = (t.notifyOnFinalize !== false) ? 'none' : '';
+      applySheetMode();
       renderStep();
     }
 
@@ -678,26 +681,42 @@
     document.getElementById('sheetSelect').addEventListener('change', function () {
       var name = this.value;
       if (!name) return;
-      S.run('GET_SHEET_HEADERS_FOR', [name]).then(function (headers) {
-        state.headers = headers || [];
+      S.run('GET_SHEET_HEADERS_FOR', [name]).then(function (res) {
+        state.headers = (res && res.headers) || [];
+        state.sheetMode = (res && res.sheetMode) || 'automatic';
+        applySheetMode();
         updateModeDisplay(detectMode(state.headers));
         fillAllColSelects();
+        renderStep();
       }).catch(function (err) { S.showError(err.message); });
     });
 
+    function applySheetMode() {
+      visibleSteps = (state.sheetMode === 'manual') ? [1, 2, 5, 6, 7, 8] : [1, 2, 3, 4, 5, 6, 7, 8];
+      if (visibleSteps.indexOf(state.currentStep) === -1) {
+        state.currentStep = visibleSteps[0];
+      }
+    }
+
+    function stepLabel(n) {
+      var i = visibleSteps.indexOf(n);
+      return 'Step ' + (i === -1 ? n : i + 1);
+    }
+
     function renderStep() {
+      var idx = visibleSteps.indexOf(state.currentStep);
       for (var i = 1; i <= totalSteps; i++) {
         document.getElementById('panelStep' + i).classList.toggle('active', i === state.currentStep);
       }
       document.getElementById('wizardTitleDisplay').textContent =
-        'STEP ' + state.currentStep + ' - ' + stepNames[state.currentStep - 1];
-      document.getElementById('backBtn').disabled = (state.currentStep === 1);
-      document.getElementById('nextBtn').style.display = (state.currentStep === totalSteps) ? 'none' : '';
+        'STEP ' + (idx + 1) + ' - ' + stepNames[state.currentStep - 1];
+      document.getElementById('backBtn').disabled = (idx === 0);
+      document.getElementById('nextBtn').style.display = (idx === visibleSteps.length - 1) ? 'none' : '';
       var c = document.getElementById('progressDotsContainer');
       c.innerHTML = '';
-      for (var d = 1; d <= totalSteps; d++) {
+      for (var d = 0; d < visibleSteps.length; d++) {
         var dot = document.createElement('span');
-        dot.className = 'dot' + (d === state.currentStep ? ' active' : '');
+        dot.className = 'dot' + (visibleSteps[d] === state.currentStep ? ' active' : '');
         c.appendChild(dot);
       }
       var hb = document.getElementById('helpBox');
@@ -707,31 +726,33 @@
     function navNext() {
       var err = validateStep(state.currentStep);
       if (err) { S.showError(err); return; }
-      if (state.currentStep < totalSteps) { state.currentStep++; renderStep(); }
+      var idx = visibleSteps.indexOf(state.currentStep);
+      if (idx !== -1 && idx < visibleSteps.length - 1) { state.currentStep = visibleSteps[idx + 1]; renderStep(); }
     }
 
     function navBack() {
-      if (state.currentStep > 1) { state.currentStep--; renderStep(); }
+      var idx = visibleSteps.indexOf(state.currentStep);
+      if (idx > 0) { state.currentStep = visibleSteps[idx - 1]; renderStep(); }
     }
 
     function validateStep(n) {
       if (n === 1) {
-        if (!document.getElementById('esignName').value.trim()) return 'Give this E-sign a name (Step 1).';
+        if (!document.getElementById('esignName').value.trim()) return 'Give this E-sign a name (' + stepLabel(1) + ').';
       }
       if (n === 2) {
-        if (!document.getElementById('sheetSelect').value) return 'Choose the sheet that holds the rows (Step 2).';
+        if (!document.getElementById('sheetSelect').value) return 'Choose the sheet that holds the rows (' + stepLabel(2) + ').';
       }
       if (n === 5) {
-        if (!document.getElementById('signingRequiredColumn').value) return 'Map the "Signing Required" column (Step 5).';
-        if (!document.getElementById('signerEmailColumn').value) return 'Map the Party A email column (Step 5).';
+        if (state.sheetMode !== 'manual' && !document.getElementById('signingRequiredColumn').value) return 'Map the "Signing Required" column (' + stepLabel(5) + ').';
+        if (!document.getElementById('signerEmailColumn').value) return 'Map the Party A email column (' + stepLabel(5) + ').';
       }
       if (n === 6) {
-        if (!document.getElementById('linkAColumn').value) return 'Map the "Sign Link - Party A" column (Step 6).';
-        if (!document.getElementById('statusColumn').value) return 'Map the status column (Step 6).';
+        if (!document.getElementById('linkAColumn').value) return 'Map the "Sign Link - Party A" column (' + stepLabel(6) + ').';
+        if (!document.getElementById('statusColumn').value) return 'Map the status column (' + stepLabel(6) + ').';
       }
       if (n === 7) {
         if (state.detectedMode !== 'template') {
-          if (!document.getElementById('emailSubject').value.trim() || !document.getElementById('emailBody').value.trim()) return 'Email subject and body are required (Step 7).';
+          if (!document.getElementById('emailSubject').value.trim() || !document.getElementById('emailBody').value.trim()) return 'Email subject and body are required (' + stepLabel(7) + ').';
         }
       }
       return null;
@@ -741,15 +762,16 @@
 
     function collect() {
       var t = {};
+      var manual = state.sheetMode === 'manual';
       t.id = state.typeId || state.type.id || '';
       t.name = document.getElementById('esignName').value.trim();
       t.dataSheetName = document.getElementById('sheetSelect').value;
       t.headerRow = 1;
       t.mode = state.detectedMode || 'standalone';
       t.sourceMode = 'standalone';
-      t.filterColumn = num('filterColumn');
-      t.filterOperator = document.getElementById('filterOperator').value;
-      t.filterKeyword = document.getElementById('filterKeyword').value.trim();
+      t.filterColumn = manual ? 0 : num('filterColumn');
+      t.filterOperator = manual ? 'NOT_EMPTY' : document.getElementById('filterOperator').value;
+      t.filterKeyword = manual ? '' : document.getElementById('filterKeyword').value.trim();
       t.signingRequiredColumn = num('signingRequiredColumn');
       t.signerEmailColumn = num('signerEmailColumn');
       t.signerNameColumn = num('signerNameColumn');
@@ -767,7 +789,7 @@
       t.signerAStatusColumn = num('signerAStatusColumn');
       t.signerBStatusColumn = num('signerBStatusColumn');
       t.outputFolderId = document.getElementById('outputFolderId').value.trim();
-      t.templateFileId = pickedPdfId || document.getElementById('templatePdfInput').value.trim();
+      t.templateFileId = manual ? '' : (pickedPdfId || document.getElementById('templatePdfInput').value.trim());
       t.autoSendEmail = document.getElementById('autoSendEmail').checked;
       t.attachSourcePdf = document.getElementById('attachSourcePdf').checked;
       t.emailWorkingToSigners = document.getElementById('emailWorkingToSigners') ? document.getElementById('emailWorkingToSigners').checked : true;
