@@ -95,6 +95,7 @@ function onOpen(e) {
     menu.addItem('Open E-sign Engine', 'OPEN_ESIGN_ENGINE');
     menu.addSeparator();
     menu.addItem('Setup Sheet (columns)', 'RUN_SETUP_MENU');
+    menu.addItem('Add another party', 'ADD_ANOTHER_PARTY');
     menu.addSeparator();
     menu.addItem('View Audit Logs', 'VIEW_AUDIT_LOGS');
     menu.addItem('Delete Audit Log', 'DELETE_AUDIT_LOG');
@@ -123,6 +124,155 @@ function RUN_SETUP_MENU() {
   } else {
     ui.alert('Setup failed: ' + (res.error || 'unknown error'));
   }
+}
+
+/** Menu wrapper: appends the next signer's column group, then reports. */
+function ADD_ANOTHER_PARTY() {
+  var ui = SpreadsheetApp.getUi();
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = _setupTargetSheet(ss);
+    if (!sheet) {
+      ui.alert('❌ No data sheet found to configure.');
+      return;
+    }
+    var res = _addAnotherParty(sheet);
+    if (res.needSetup) {
+      ui.alert('⚠️ DocuPDF Sign — No Signer columns\n\n' +
+        'This sheet has no Signer columns yet.\n' +
+        'Run "Setup Sheet (columns)" first.');
+      return;
+    }
+    if (!res.ok) {
+      ui.alert('❌ Could not add Signer ' + res.letter + ' columns: ' + (res.error || 'unknown error'));
+      return;
+    }
+    if (res.alreadyExists) {
+      ui.alert('Signer ' + res.letter + ' columns already exist.');
+      return;
+    }
+    _bumpSidebarVersion();
+    ui.alert('✅ Added Signer ' + res.letter + ' columns. The sheet now supports ' + res.parties + ' parties.');
+  } catch (err) {
+    Logger.log('ADD_ANOTHER_PARTY error: %s', err.message);
+    ui.alert('❌ Could not add Signer columns: ' + err.message);
+  }
+}
+
+/**
+ * Collects the distinct signer letters that have a 'Signer X Email' header.
+ */
+function _signerEmailLetters(sheet) {
+  var letters = [];
+  if (!sheet) return letters;
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return letters;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var seen = {};
+  for (var i = 0; i < headers.length; i++) {
+    var m = String(headers[i]).trim().match(/^Signer\s+([A-Z])\s+Email$/i);
+    if (m) {
+      var L = m[1].toUpperCase();
+      if (!seen[L]) { seen[L] = true; letters.push(L); }
+    }
+  }
+  return letters;
+}
+
+/**
+ * Number of parties the sheet supports: the highest signer letter present,
+ * minimum 2 (A and B are always required). Derived from the 'Signer X Email'
+ * headers.
+ * @param {Object} sheet
+ * @return {number} 2, 3, 4, ...
+ */
+function _getPartyCount(sheet) {
+  var letters = _signerEmailLetters(sheet);
+  if (!letters.length) return 2;
+  var highest = 0;
+  letters.forEach(function (L) {
+    var code = L.charCodeAt(0) - 64;
+    if (code > highest) highest = code;
+  });
+  return Math.max(2, highest);
+}
+
+/**
+ * Next signer letter to add, or '' when the sheet has no signer columns yet.
+ */
+function _nextSignerLetter(sheet) {
+  var letters = _signerEmailLetters(sheet);
+  if (!letters.length) return '';
+  var highest = 0;
+  letters.forEach(function (L) {
+    var code = L.charCodeAt(0) - 64;
+    if (code > highest) highest = code;
+  });
+  return String.fromCharCode(65 + highest);
+}
+
+/**
+ * The seven headers for one party's column group.
+ * @param {string} letter
+ * @return {Array<string>}
+ */
+function _signerPartyColumns(letter) {
+  var X = String(letter).toUpperCase();
+  return [
+    'Signer ' + X + ' Email',
+    'Signer ' + X + ' Name',
+    'Signer ' + X + ' Designation',
+    'Signer ' + X + ' Company',
+    'Signer ' + X + ' Status',
+    'Signer ' + X + ' Decline Reason',
+    'Sign Link - Party ' + X
+  ];
+}
+
+/**
+ * Appends the next party's column group at the far right of the sheet (so
+ * existing A/B indexes never shift). Idempotent per column.
+ * @param {Object} sheet
+ * @return {Object} { ok, letter, parties, added:[], alreadyExists?, needSetup?, error? }
+ */
+function _addAnotherParty(sheet) {
+  var result = { ok: false, letter: '', parties: _getPartyCount(sheet), added: [] };
+  if (!sheet) {
+    result.error = 'No data sheet found.';
+    return result;
+  }
+  var letter = _nextSignerLetter(sheet);
+  if (!letter) {
+    result.needSetup = true;
+    result.error = 'No Signer columns found.';
+    return result;
+  }
+  result.letter = letter;
+  var names = _signerPartyColumns(letter);
+  var lastCol = sheet.getLastColumn();
+  var headers = (lastCol >= 1) ? sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String) : [];
+  var findCol = function (name) {
+    for (var i = 0; i < headers.length; i++) {
+      if (headers[i].trim().toLowerCase() === String(name).toLowerCase()) return i + 1;
+    }
+    return 0;
+  };
+  var missing = names.filter(function (n) { return !findCol(n); });
+  if (!missing.length) {
+    result.ok = true;
+    result.alreadyExists = true;
+    return result;
+  }
+  missing.forEach(function (name) {
+    lastCol++;
+    sheet.getRange(1, lastCol).setValue(name);
+    sheet.getRange(1, lastCol).setFontWeight('bold');
+    headers.push(String(name));
+    result.added.push(String(name));
+  });
+  result.parties = _getPartyCount(sheet);
+  result.ok = true;
+  return result;
 }
 
 function onInstall(e) {
