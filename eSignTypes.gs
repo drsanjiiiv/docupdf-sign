@@ -14,6 +14,16 @@
 var TYPES_KEY = 'DOCUPDF_TYPES_';
 var SIDEBAR_VERSION_KEY = 'DOCUPDF_SIDEBAR_VERSION_';
 
+var TYPE_COLUMN_FIELDS = [
+  'signingRequiredColumn', 'signerEmailColumn', 'signerNameColumn',
+  'signerADesignationColumn', 'signerACompanyColumn',
+  'signerBEmailColumn', 'signerBNameColumn', 'signerBDesignationColumn', 'signerBCompanyColumn',
+  'docNameColumn', 'statusColumn', 'signerAStatusColumn', 'signerBStatusColumn',
+  'documentSignedColumn', 'linkAColumn', 'linkBColumn',
+  'signerADeclineReasonColumn', 'signerBDeclineReasonColumn',
+  'workingPdfColumn', 'signedPdfColumn', 'sourceColumn'
+];
+
 /* ------------------------------------------------------------------ *
  * Type registry.
  * ------------------------------------------------------------------ */
@@ -116,7 +126,13 @@ function _seedTypeFromSetup(type) {
   try {
     var cfg = readConfig();
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = _getDataSheet(ss, cfg);
+    var sheet = null;
+    if (type && type.dataSheetName) {
+      sheet = ss.getSheetByName(type.dataSheetName);
+    }
+    if (!sheet) {
+      sheet = ss.getActiveSheet();
+    }
     cfg = _resolveConfigColumns(sheet, cfg);
     var cols = [
       'signingRequiredColumn', 'signerEmailColumn', 'signerNameColumn',
@@ -129,10 +145,12 @@ function _seedTypeFromSetup(type) {
       'workingPdfColumn', 'signedPdfColumn', 'emailWorkingToSigners', 'emailFinalToSigners'
     ];
     cols.forEach(function (k) {
-      if (cfg[k]) type[k] = cfg[k];
+      if (Object.prototype.hasOwnProperty.call(cfg, k) && cfg[k] !== undefined) {
+        type[k] = cfg[k];
+      }
     });
     type.sourceMode = (cfg.sourceMode === 'standalone' || cfg.sourceMode === 'documail') ? cfg.sourceMode : (cfg.mergedDocStatusColumn ? 'documail' : 'standalone');
-    type.dataSheetName = cfg.dataSheetName || (sheet ? sheet.getName() : '');
+    type.dataSheetName = sheet ? sheet.getName() : (cfg.dataSheetName || '');
     type.outputFolderId = cfg.outputFolderId || '';
     type.shareSourcePdf = cfg.shareSourcePdf !== false;
     type.autoSendEmail = cfg.autoSendEmail !== false;
@@ -214,16 +232,20 @@ function GET_SHEET_HEADERS_FOR(sheetName) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = sheetName ? ss.getSheetByName(sheetName) : ss.getActiveSheet();
-    if (!sheet) return { headers: [], sheetMode: 'automatic' };
+    if (!sheet) return { headers: [], sheetMode: 'automatic', columns: {} };
     var lastCol = sheet.getLastColumn();
-    if (lastCol < 1) return { headers: [], sheetMode: 'automatic' };
+    if (lastCol < 1) return { headers: [], sheetMode: 'automatic', columns: {} };
+    var probe = _resolveConfigColumns(sheet, _defaultType());
+    var columns = {};
+    TYPE_COLUMN_FIELDS.forEach(function (k) { columns[k] = probe[k] || 0; });
     return {
       headers: sheet.getRange(1, 1, 1, lastCol).getValues()[0],
-      sheetMode: _getSheetMode(ss.getId(), sheet.getSheetId())
+      sheetMode: _getSheetMode(ss.getId(), sheet.getSheetId()),
+      columns: columns
     };
   } catch (err) {
     Logger.log('GET_SHEET_HEADERS_FOR error: %s', err.message);
-    return { headers: [], sheetMode: 'automatic' };
+    return { headers: [], sheetMode: 'automatic', columns: {} };
   }
 }
 

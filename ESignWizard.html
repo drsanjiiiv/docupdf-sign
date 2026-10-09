@@ -679,11 +679,19 @@
     }
 
     document.getElementById('sheetSelect').addEventListener('change', function () {
+      S.hideError();
       var name = this.value;
       if (!name) return;
       S.run('GET_SHEET_HEADERS_FOR', [name]).then(function (res) {
         state.headers = (res && res.headers) || [];
         state.sheetMode = (res && res.sheetMode) || 'automatic';
+        var cols = (res && res.columns) || {};
+        COL_MAP.forEach(function (pair) {
+          if (Object.prototype.hasOwnProperty.call(cols, pair[1])) {
+            state.type[pair[1]] = cols[pair[1]];
+          }
+        });
+        state.type.dataSheetName = name;
         applySheetMode();
         updateModeDisplay(detectMode(state.headers));
         fillAllColSelects();
@@ -724,6 +732,7 @@
     }
 
     function navNext() {
+      S.hideError();
       var err = validateStep(state.currentStep);
       if (err) { S.showError(err); return; }
       var idx = visibleSteps.indexOf(state.currentStep);
@@ -731,6 +740,7 @@
     }
 
     function navBack() {
+      S.hideError();
       var idx = visibleSteps.indexOf(state.currentStep);
       if (idx > 0) { state.currentStep = visibleSteps[idx - 1]; renderStep(); }
     }
