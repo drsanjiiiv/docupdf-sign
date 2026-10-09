@@ -90,6 +90,10 @@ function _defaultType() {
     sourceColumn: 0,              // 'Source Doc ID/URL' (standalone)
     templateFileId: '',           // per-type template PDF (standalone, Step 3)
     slotPlacement: { A: { page: 0, align: 'center', vOffset: 0.85 }, B: { page: 0, align: 'center', vOffset: 0.85 } },
+    anchorA: 'On behalf of Signer A',
+    anchorB: 'On behalf of Signer B',
+    templateAnchors: {},          // { A: { page, x, y, fontSize, textWidth }, ... } keyed by signer letter
+    templateAnchorHash: '',       // SHA-256 of the template the anchors were extracted from
     signerTextFieldLabel: '',     // optional signer text field (blank = off)
     initialsEnabled: true,
     reminderDays: 0,              // 0 = no reminders
@@ -219,7 +223,8 @@ function GET_ESIGN_TYPE(typeId) {
       headers: headers,
       sheetMode: _getSheetMode(ss.getId(), sheet ? sheet.getSheetId() : 0),
       activeSheet: ss.getActiveSheet() ? ss.getActiveSheet().getName() : '',
-      sheets: ss.getSheets().map(function (s) { return s.getName(); })
+      sheets: ss.getSheets().map(function (s) { return s.getName(); }),
+      partyCount: _getPartyCount(sheet)
     };
   } catch (err) {
     Logger.log('GET_ESIGN_TYPE error: %s', err.message);
@@ -232,20 +237,60 @@ function GET_SHEET_HEADERS_FOR(sheetName) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = sheetName ? ss.getSheetByName(sheetName) : ss.getActiveSheet();
-    if (!sheet) return { headers: [], sheetMode: 'automatic', columns: {} };
+    if (!sheet) return { headers: [], sheetMode: 'automatic', columns: {}, partyCount: 2 };
     var lastCol = sheet.getLastColumn();
-    if (lastCol < 1) return { headers: [], sheetMode: 'automatic', columns: {} };
+    if (lastCol < 1) return { headers: [], sheetMode: 'automatic', columns: {}, partyCount: _getPartyCount(sheet) };
     var probe = _resolveConfigColumns(sheet, _defaultType());
     var columns = {};
     TYPE_COLUMN_FIELDS.forEach(function (k) { columns[k] = probe[k] || 0; });
     return {
       headers: sheet.getRange(1, 1, 1, lastCol).getValues()[0],
       sheetMode: _getSheetMode(ss.getId(), sheet.getSheetId()),
-      columns: columns
+      columns: columns,
+      partyCount: _getPartyCount(sheet)
     };
   } catch (err) {
     Logger.log('GET_SHEET_HEADERS_FOR error: %s', err.message);
-    return { headers: [], sheetMode: 'automatic', columns: {} };
+    return { headers: [], sheetMode: 'automatic', columns: {}, partyCount: 2 };
+  }
+}
+
+/**
+ * Returns a template's bytes as base64 so the wizard can extract anchor text
+ * client-side with pdf.js. Google-Doc templates are reported as {googleDoc:true}
+ * (no bytes) so the wizard shows "can't verify" instead of a hard failure.
+ * @param {string} fileId
+ * @return {Object} { ok, pdfB64?, mime?, name?, googleDoc?, tooLarge?, error? }
+ */
+function GET_TEMPLATE_PDF_B64(fileId) {
+  try {
+    var id = NORMALIZE_FILE_ID(fileId);
+    if (!id) {
+      return { ok: false, error: 'No template file id.' };
+    }
+    var meta = _driveFetchMeta(id);
+    if (!meta || !meta.ok) {
+      return { ok: false, error: (meta && meta.error) || 'Could not read the template.' };
+    }
+    if (meta.mime === 'application/vnd.google-apps.document') {
+      return { ok: true, googleDoc: true, name: meta.name || '' };
+    }
+    var pr = _driveReadPdf(id);
+    if (!pr.ok || !pr.bytes || !pr.bytes.length) {
+      return { ok: false, error: pr.error || 'Could not read the template.' };
+    }
+    if (pr.bytes.length > PREVIEW_INLINE_MAX_BYTES) {
+      return { ok: false, tooLarge: true, error: 'Template is too large to verify.' };
+    }
+    return {
+      ok: true,
+      pdfB64: Utilities.base64Encode(pr.bytes),
+      mime: 'application/pdf',
+      name: pr.name || meta.name || ''
+    };
+  } catch (err) {
+    Logger.log('GET_TEMPLATE_PDF_B64 error: %s', err.message);
+    return { ok: false, error: err.message };
   }
 }
 
@@ -265,12 +310,6 @@ function SAVE_ESIGN_TYPE(typeObj) {
     }
     if (!typeObj.dataSheetName) {
       return { ok: false, error: 'Choose the sheet that holds the rows.' };
-    }
-    var modeSS = SpreadsheetApp.getActiveSpreadsheet();
-    var modeSheet = modeSS.getSheetByName(typeObj.dataSheetName);
-    var sheetMode = _getSheetMode(modeSS.getId(), modeSheet ? modeSheet.getSheetId() : 0);
-    if (sheetMode !== 'manual' && !Number(typeObj.signingRequiredColumn)) {
-      return { ok: false, error: 'Map the "Signing Required" column (rows gated on Yes/No).' };
     }
     if (typeObj.sourceMode === 'standalone' && !Number(typeObj.signerEmailColumn)) {
       return { ok: false, error: 'Party A email column is required.' };

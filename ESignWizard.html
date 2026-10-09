@@ -171,6 +171,13 @@
     #backBtn:disabled { opacity: 0.5; cursor: not-allowed; }
     .pw-help { font-size: 11px; color: #5f6368; margin-top: 2px; line-height: 1.35; }
     .check + .pw-help { margin-top: -8px; margin-bottom: 10px; }
+    .anchor-row { display: flex; align-items: center; gap: 8px; }
+    .anchor-row input { flex: 1; }
+    .anchor-badge { flex-shrink: 0; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+    .anchor-badge.grey { background: #f1f3f4; color: #5f6368; }
+    .anchor-badge.green { background: #e6f4ea; color: #137333; }
+    .anchor-badge.amber { background: #fef7e0; color: #b06000; }
+    .anchor-badge.red { background: #fce8e6; color: #c5221f; }
   </style>
 </head>
 
@@ -249,49 +256,12 @@
         </div>
       </div>
 
-      <!-- STEP 5: Signers -->
+      <!-- STEP 5: Signers (anchors) -->
       <div class="step-panel" id="panelStep5">
-        <p class="instruction-text">Map the signer columns. Party B optional = single-party signing; two slots = both must sign.</p>
-        <div class="field-row" id="signingRequiredRow">
-          <label>Signing Required column (Yes/No)</label>
-          <select id="signingRequiredColumn"></select>
-        </div>
-        <div class="field-row">
-          <label>Party A email column</label>
-          <select id="signerEmailColumn"></select>
-        </div>
-        <div class="field-row">
-          <label>Party A name column <span style="color:#5f6368;">(optional)</span></label>
-          <select id="signerNameColumn"></select>
-        </div>
-        <div class="field-row">
-          <label>Party A designation column <span style="color:#5f6368;">(optional — shown on the signed PDF &amp; email)</span></label>
-          <select id="signerADesignationColumn"></select>
-        </div>
-        <div class="field-row">
-          <label>Party A company column <span style="color:#5f6368;">(optional — On-behalf-of heading)</span></label>
-          <select id="signerACompanyColumn"></select>
-        </div>
-        <div class="field-row">
-          <label>Party B email column <span style="color:#5f6368;">(optional)</span></label>
-          <select id="signerBEmailColumn"></select>
-        </div>
-        <div class="field-row">
-          <label>Party B name column <span style="color:#5f6368;">(optional)</span></label>
-          <select id="signerBNameColumn"></select>
-        </div>
-        <div class="field-row">
-          <label>Party B designation column <span style="color:#5f6368;">(optional)</span></label>
-          <select id="signerBDesignationColumn"></select>
-        </div>
-        <div class="field-row">
-          <label>Party B company column <span style="color:#5f6368;">(optional — On-behalf-of heading)</span></label>
-          <select id="signerBCompanyColumn"></select>
-        </div>
-        <div class="field-row">
-          <label>Doc name column <span style="color:#5f6368;">(optional)</span></label>
-          <select id="docNameColumn"></select>
-        </div>
+        <p class="instruction-text">Each signer needs an anchor line in the template. Type the exact text the template contains — status updates as you type.</p>
+        <div id="anchorRows"></div>
+        <div id="anchorSummary" class="pw-help"></div>
+        <div id="anchorNote" class="info-box" style="display:none;background:#fef7e0;border-color:#fdd663;color:#7a5900;margin-top:8px;"></div>
       </div>
 
       <!-- STEP 6: Output & Links -->
@@ -450,7 +420,7 @@
         return;
       }
       var pasted = document.getElementById('templatePdfInput').value.trim();
-      if (pasted) { pickedPdfId = pasted; showPdfStatus('Will use on Save: ' + pasted); return; }
+      if (pasted) { pickedPdfId = pasted; showPdfStatus('Will use on Save: ' + pasted); verifyAnchors(); return; }
       document.getElementById('templatePdfInput').focus();
       S.showError('Paste a Drive link or file ID into the field, then click Save.');
     }
@@ -487,6 +457,7 @@
             pickedPdfId = doc.id;
             document.getElementById('templatePdfInput').value = doc.id;
             showPdfStatus('Template selected: ' + (doc.name || doc.id));
+            verifyAnchors();
           }
         })
         .build();
@@ -498,10 +469,31 @@
       el.textContent = msg;
       el.style.display = '';
     }
+
+    (function () {
+      var input = document.getElementById('templatePdfInput');
+      if (!input) return;
+      var timer = null;
+      input.addEventListener('input', function () {
+        pickedPdfId = input.value.trim();
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(function () { verifyAnchors(); }, 400);
+      });
+    })();
+
     var totalSteps = 8;
     var stepNames = ['NAME', 'SHEET', 'PDF', 'ROWS / FILTER', 'SIGNERS', 'OUTPUT &amp; LINKS', 'EMAIL', 'SCHEDULE'];
-    var state = { typeId: '', type: null, headers: [], activeSheet: '', detectedMode: 'standalone', currentStep: 1, sheetMode: 'automatic' };
+    var state = { typeId: '', type: null, headers: [], activeSheet: '', detectedMode: 'standalone', currentStep: 1, sheetMode: 'automatic', partyCount: 2, templateText: '', templatePages: [], templateMime: '', templateHash: '', extractState: 'idle', anchorStatus: {} };
     var visibleSteps = [1, 2, 3, 4, 5, 6, 7, 8];
+    var PDFJS_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/';
+    var pdfjsLib = null;
+
+    function base64ToUint8Array(b64) {
+      var bin = atob(b64);
+      var arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return arr;
+    }
 
     var HELP = {
       1: 'Give this E-sign a name so you can find it in the sidebar.\n' +
@@ -519,11 +511,10 @@
         '\u2022 Has any value: every row with a value in that column matches.\n' +
         '\u2022 Contains text: only rows whose filter column contains the keyword (e.g. "MOU").\n' +
         'Leave the filter column empty to apply to all rows.',
-      5: 'Map the columns that hold signer details.\n' +
-        '\u2022 Signing Required: the Yes/No column that gates a row (only Yes is signed).\n' +
-        '\u2022 Party A email/name: the primary signer (required).\n' +
-        '\u2022 Party B email/name: optional second signer. When present, both parties must sign before the PDF is finalised.\n' +
-        '\u2022 Doc name: the column holding the document/invoice name (optional; the PDF file name is used if blank).',
+      5: 'Verify each signer\u2019s anchor line in the template.\n' +
+        '\u2022 The template must contain a line such as \u201cOn behalf of Signer A\u201d for each party.\n' +
+        '\u2022 Type the exact text; the badge turns green when it matches, amber when only case/spacing differs, red when it is missing.\n' +
+        '\u2022 Red anchors block Save. Google Doc templates can\u2019t be verified here.',
       6: 'Map the output columns DocuPDF writes to.\n' +
         '\u2022 Sign Link - Party A/B: where the one-time signing links are written (Template reads these).\n' +
         '\u2022 DocuPDF Status: job status per row.\n' +
@@ -538,16 +529,6 @@
 
     var COL_MAP = [
       ['filterColumn', 'filterColumn'],
-      ['signingRequiredColumn', 'signingRequiredColumn'],
-      ['signerEmailColumn', 'signerEmailColumn'],
-      ['signerNameColumn', 'signerNameColumn'],
-      ['signerADesignationColumn', 'signerADesignationColumn'],
-      ['signerACompanyColumn', 'signerACompanyColumn'],
-      ['signerBEmailColumn', 'signerBEmailColumn'],
-      ['signerBNameColumn', 'signerBNameColumn'],
-      ['signerBDesignationColumn', 'signerBDesignationColumn'],
-      ['signerBCompanyColumn', 'signerBCompanyColumn'],
-      ['docNameColumn', 'docNameColumn'],
       ['linkAColumn', 'linkAColumn'],
       ['linkBColumn', 'linkBColumn'],
       ['statusColumn', 'statusColumn'],
@@ -568,6 +549,7 @@
         state.headers = res.headers || [];
         state.activeSheet = res.activeSheet || '';
         state.sheetMode = res.sheetMode || 'automatic';
+        state.partyCount = res.partyCount || 2;
         populate(res.sheets || []);
       }).catch(function (err) { S.showError(err.message); });
     }
@@ -605,7 +587,9 @@
       var warnEl3 = document.getElementById('notifyOnFinalizeWarn');
       if (warnEl3) warnEl3.style.display = (t.notifyOnFinalize !== false) ? 'none' : '';
       applySheetMode();
+      renderAnchorRows();
       renderStep();
+      if (state.sheetMode !== 'manual') verifyAnchors();
     }
 
     function fillNameSelect(id, names, selected) {
@@ -643,6 +627,252 @@
       el.value = (el.querySelector('option[value="' + v + '"]')) ? v : '';
     }
 
+    function anchorDefault(L) { return 'On behalf of Signer ' + L; }
+
+    function normWs(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
+
+    function renderAnchorRows() {
+      var box = document.getElementById('anchorRows');
+      if (!box) return;
+      box.innerHTML = '';
+      var n = Math.max(1, Number(state.partyCount) || 2);
+      for (var p = 0; p < n; p++) {
+        var L = String.fromCharCode(65 + p);
+        var current = (state.type && state.type['anchor' + L]) || anchorDefault(L);
+        var row = document.createElement('div');
+        row.className = 'anchor-row field-row';
+        row.setAttribute('data-party', L);
+        var label = document.createElement('label');
+        label.textContent = 'Signer ' + L + ' anchor';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'anchor' + L;
+        input.value = current;
+        input.placeholder = anchorDefault(L);
+        (function (letter, el) {
+          var timer = null;
+          el.addEventListener('input', function () {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(function () { recomputeRow(letter); }, 250);
+          });
+        })(L, input);
+        var badge = document.createElement('span');
+        badge.className = 'anchor-badge grey';
+        badge.id = 'anchorStatus' + L;
+        badge.textContent = '—';
+        row.appendChild(label);
+        row.appendChild(input);
+        row.appendChild(badge);
+        box.appendChild(row);
+      }
+      updateAnchorSummary();
+    }
+
+    function classifyAnchor(anchor, rawText) {
+      if (state.extractState === 'noverify') return { status: 'grey', reason: "— can't verify (Google Doc / too large)" };
+      if (state.extractState === 'loading') return { status: 'grey', reason: '… reading template' };
+      if (state.extractState === 'error') return { status: 'grey', reason: "— can't verify" };
+      var a = String(anchor || '');
+      if (!a) return { status: 'red', reason: '✕ not found' };
+      var raw = String(rawText || '');
+      if (raw.indexOf(a) !== -1) return { status: 'green', reason: '✓ found' };
+      if (raw.toLowerCase().indexOf(a.toLowerCase()) !== -1) return { status: 'amber', reason: '⚠ case differs' };
+      if (normWs(raw).toLowerCase().indexOf(normWs(a).toLowerCase()) !== -1) return { status: 'amber', reason: '⚠ spacing differs' };
+      var noSpaceRaw = raw.replace(/\s+/g, '').toLowerCase();
+      var noSpaceAnchor = a.replace(/\s+/g, '').toLowerCase();
+      if (noSpaceAnchor && noSpaceRaw.indexOf(noSpaceAnchor) !== -1) return { status: 'amber', reason: '⚠ spacing differs' };
+      return { status: 'red', reason: '✕ not found' };
+    }
+
+    function recomputeRow(L) {
+      var el = document.getElementById('anchor' + L);
+      var badge = document.getElementById('anchorStatus' + L);
+      var anchor = el ? el.value : '';
+      var res = classifyAnchor(anchor, state.templateText);
+      state.anchorStatus[L] = res.status;
+      if (badge) {
+        badge.className = 'anchor-badge ' + res.status;
+        badge.textContent = res.reason;
+      }
+      if (res.status === 'red' || res.status === 'grey') {
+        var coords = (state.type && state.type.templateAnchors) || {};
+        if (coords[L]) { delete coords[L]; state.type.templateAnchors = coords; }
+      } else {
+        captureAnchorCoords(L, anchor);
+      }
+      updateAnchorSummary();
+    }
+
+    function recomputeAllRows() {
+      var n = Math.max(1, Number(state.partyCount) || 2);
+      for (var p = 0; p < n; p++) recomputeRow(String.fromCharCode(65 + p));
+    }
+
+    function updateAnchorSummary() {
+      var g = 0, a = 0, m = 0;
+      var n = Math.max(1, Number(state.partyCount) || 2);
+      for (var p = 0; p < n; p++) {
+        var s = state.anchorStatus[String.fromCharCode(65 + p)];
+        if (s === 'green') g++;
+        else if (s === 'amber') a++;
+        else if (s === 'red') m++;
+      }
+      var el = document.getElementById('anchorSummary');
+      if (el) el.textContent = g + ' matched · ' + a + ' needs review · ' + m + ' missing';
+    }
+
+    function setAnchorNote(msg) {
+      var el = document.getElementById('anchorNote');
+      if (!el) return;
+      if (msg) { el.textContent = msg; el.style.display = ''; }
+      else { el.textContent = ''; el.style.display = 'none'; }
+    }
+
+    function sha256Hex(bytes) {
+      if (!(window.crypto && window.crypto.subtle && window.crypto.subtle.digest)) {
+        return Promise.resolve('');
+      }
+      return window.crypto.subtle.digest('SHA-256', bytes).then(function (buf) {
+        var b = new Uint8Array(buf), s = '';
+        for (var i = 0; i < b.length; i++) s += ('0' + b[i].toString(16)).slice(-2);
+        return s;
+      }).catch(function () { return ''; });
+    }
+
+    function extractTemplateText(pdfB64) {
+      var bytes = base64ToUint8Array(pdfB64);
+      return sha256Hex(bytes).then(function (hash) {
+        if (hash && hash === state.templateHash && state.templateText) {
+          return { text: state.templateText, pages: state.templatePages || [], hash: hash };
+        }
+        return import(PDFJS_BASE + 'pdf.min.mjs').then(function (lib) {
+          pdfjsLib = lib;
+          return import(PDFJS_BASE + 'pdf.worker.min.mjs').catch(function () { /* main-thread fallback */ });
+        }).then(function () {
+          return pdfjsLib.getDocument({ data: bytes }).promise;
+        }).then(function (pdf) {
+          var pages = [];
+          var chain = Promise.resolve();
+          for (var i = 1; i <= pdf.numPages; i++) {
+            (function (pageNum) {
+              chain = chain.then(function () {
+                return pdf.getPage(pageNum).then(function (page) {
+                  return page.getTextContent().then(function (tc) {
+                    var items = ((tc && tc.items) || []).map(function (it) {
+                      return { str: (it && it.str) || '', transform: it && it.transform, width: (it && it.width) || 0, height: (it && it.height) || 0 };
+                    });
+                    pages.push({ items: items });
+                  });
+                });
+              });
+            })(i);
+          }
+          return chain.then(function () {
+            var text = pages.map(function (pg) {
+              return pg.items.map(function (it) { return it.str; }).join(' ');
+            }).join(' \n ');
+            return { text: text, pages: pages, hash: hash };
+          });
+        });
+      });
+    }
+
+    function verifyAnchors() {
+      if (state.sheetMode === 'manual') {
+        state.extractState = 'idle'; state.templateText = ''; setAnchorNote(''); recomputeAllRows();
+        return;
+      }
+      var fileId = pickedPdfId || document.getElementById('templatePdfInput').value.trim();
+      if (!fileId) {
+        state.extractState = 'idle'; state.templateText = ''; setAnchorNote(''); recomputeAllRows();
+        return;
+      }
+      state.extractState = 'loading';
+      setAnchorNote('');
+      recomputeAllRows();
+      S.run('GET_TEMPLATE_PDF_B64', [fileId]).then(function (res) {
+        if (res && res.googleDoc) {
+          state.extractState = 'noverify'; state.templateText = '';
+          setAnchorNote("This is a Google Doc template — anchors can't be verified here; it is converted to PDF at signing.");
+          recomputeAllRows();
+          return;
+        }
+        if (res && res.tooLarge) {
+          state.extractState = 'noverify'; state.templateText = '';
+          setAnchorNote('Template is too large to verify anchors here.');
+          recomputeAllRows();
+          return;
+        }
+        if (!res || !res.ok) {
+          state.extractState = 'error'; state.templateText = '';
+          setAnchorNote('Could not read the template: ' + ((res && res.error) || 'unknown error'));
+          recomputeAllRows();
+          return;
+        }
+        state.templateMime = res.mime || 'application/pdf';
+        extractTemplateText(res.pdfB64).then(function (out) {
+          state.templateText = out.text || '';
+          state.templatePages = out.pages || [];
+          state.templateHash = out.hash || '';
+          if (state.type) state.type.templateAnchorHash = state.templateHash;
+          state.extractState = 'ready';
+          setAnchorNote('');
+          recomputeAllRows();
+        }).catch(function (err) {
+          state.extractState = 'error';
+          setAnchorNote('Could not read the template text: ' + ((err && err.message) || err));
+          recomputeAllRows();
+        });
+      }).catch(function (err) {
+        state.extractState = 'error';
+        setAnchorNote('Could not read the template: ' + err.message);
+        recomputeAllRows();
+      });
+    }
+
+    function findAnchorItem(pages, anchor, caseInsensitive) {
+      var needle = caseInsensitive ? anchor.toLowerCase() : anchor;
+      for (var p = 0; p < pages.length; p++) {
+        var items = (pages[p] && pages[p].items) || [];
+        var joined = items.map(function (it) { return it.str; }).join(' ');
+        var hay = caseInsensitive ? joined.toLowerCase() : joined;
+        var idx = hay.indexOf(needle);
+        if (idx === -1) continue;
+        var pos = 0;
+        for (var j = 0; j < items.length; j++) {
+          var len = items[j].str.length;
+          if (idx < pos + len || j === items.length - 1) {
+            return { page: p + 1, transform: items[j].transform, width: items[j].width, height: items[j].height };
+          }
+          pos += len + 1;
+        }
+      }
+      return null;
+    }
+
+    function captureAnchorCoords(L, anchor) {
+      var coords = (state.type && state.type.templateAnchors) || {};
+      var pages = state.templatePages || [];
+      var a = String(anchor || '');
+      var found = null;
+      if (a && pages.length) {
+        found = findAnchorItem(pages, a, false) || findAnchorItem(pages, a, true);
+      }
+      if (found) {
+        coords[L] = {
+          page: found.page,
+          transform: found.transform,
+          width: found.width,
+          height: found.height,
+          fontSize: Math.round(found.height),
+          textWidth: Math.round(found.width)
+        };
+      } else {
+        delete coords[L];
+      }
+      state.type.templateAnchors = coords;
+    }
+
     function detectMode(headers) {
       var joined = String((headers || []).join('|')).toLowerCase();
       var markers = ['merged doc status', 'merged doc id', 'merged doc url', 'recipient email'];
@@ -657,7 +887,6 @@
       var istemplate = (mode === 'template');
       var standalone = !istemplate;
       document.getElementById('emailFields').style.display = standalone ? '' : 'none';
-      document.getElementById('signingRequiredRow').style.display = standalone ? 'none' : '';
       document.getElementById('rowsFilterFields').style.display = standalone ? 'none' : '';
       document.getElementById('standaloneRowsNote').style.display = standalone ? '' : 'none';
       document.getElementById('rowsInstruction').textContent = standalone
@@ -686,21 +915,21 @@
         state.headers = (res && res.headers) || [];
         state.sheetMode = (res && res.sheetMode) || 'automatic';
         var cols = (res && res.columns) || {};
-        COL_MAP.forEach(function (pair) {
-          if (Object.prototype.hasOwnProperty.call(cols, pair[1])) {
-            state.type[pair[1]] = cols[pair[1]];
-          }
-        });
+        for (var ck in cols) {
+          if (Object.prototype.hasOwnProperty.call(cols, ck)) { state.type[ck] = cols[ck]; }
+        }
         state.type.dataSheetName = name;
+        state.partyCount = (res && res.partyCount) || state.partyCount;
         applySheetMode();
         updateModeDisplay(detectMode(state.headers));
         fillAllColSelects();
+        renderAnchorRows();
         renderStep();
       }).catch(function (err) { S.showError(err.message); });
     });
 
     function applySheetMode() {
-      visibleSteps = (state.sheetMode === 'manual') ? [1, 2, 5, 6, 7, 8] : [1, 2, 3, 4, 5, 6, 7, 8];
+      visibleSteps = (state.sheetMode === 'manual') ? [1, 2, 6, 7, 8] : [1, 2, 3, 4, 5, 6, 7, 8];
       if (visibleSteps.indexOf(state.currentStep) === -1) {
         state.currentStep = visibleSteps[0];
       }
@@ -753,8 +982,17 @@
         if (!document.getElementById('sheetSelect').value) return 'Choose the sheet that holds the rows (' + stepLabel(2) + ').';
       }
       if (n === 5) {
-        if (state.sheetMode !== 'manual' && !document.getElementById('signingRequiredColumn').value) return 'Map the "Signing Required" column (' + stepLabel(5) + ').';
-        if (!document.getElementById('signerEmailColumn').value) return 'Map the Party A email column (' + stepLabel(5) + ').';
+        if (state.sheetMode === 'manual') return null;
+        if (state.extractState === 'loading') return 'Still reading the template… (' + stepLabel(5) + ').';
+        var cnt = Math.max(1, Number(state.partyCount) || 2);
+        for (var p = 0; p < cnt; p++) {
+          var L = String.fromCharCode(65 + p);
+          if (state.anchorStatus[L] === 'red') {
+            var el = document.getElementById('anchor' + L);
+            var txt = (el && el.value) || anchorDefault(L);
+            return 'Anchor "' + txt + '" not found in the template (' + stepLabel(5) + ').';
+          }
+        }
       }
       if (n === 6) {
         if (!document.getElementById('linkAColumn').value) return 'Map the "Sign Link - Party A" column (' + stepLabel(6) + ').';
@@ -773,6 +1011,11 @@
     function collect() {
       var t = {};
       var manual = state.sheetMode === 'manual';
+      if (state.type) {
+        for (var ck in state.type) {
+          if (Object.prototype.hasOwnProperty.call(state.type, ck)) { t[ck] = state.type[ck]; }
+        }
+      }
       t.id = state.typeId || state.type.id || '';
       t.name = document.getElementById('esignName').value.trim();
       t.dataSheetName = document.getElementById('sheetSelect').value;
@@ -782,16 +1025,6 @@
       t.filterColumn = manual ? 0 : num('filterColumn');
       t.filterOperator = manual ? 'NOT_EMPTY' : document.getElementById('filterOperator').value;
       t.filterKeyword = manual ? '' : document.getElementById('filterKeyword').value.trim();
-      t.signingRequiredColumn = num('signingRequiredColumn');
-      t.signerEmailColumn = num('signerEmailColumn');
-      t.signerNameColumn = num('signerNameColumn');
-      t.signerADesignationColumn = num('signerADesignationColumn');
-      t.signerACompanyColumn = num('signerACompanyColumn');
-      t.signerBEmailColumn = num('signerBEmailColumn');
-      t.signerBNameColumn = num('signerBNameColumn');
-      t.signerBDesignationColumn = num('signerBDesignationColumn');
-      t.signerBCompanyColumn = num('signerBCompanyColumn');
-      t.docNameColumn = num('docNameColumn');
       t.linkAColumn = num('linkAColumn');
       t.linkBColumn = num('linkBColumn');
       t.statusColumn = num('statusColumn');
@@ -821,6 +1054,18 @@
       t.logoUrl = document.getElementById('logoUrl').value.trim();
       t.esignMode = 'native';
       t.scheduleMinutes = Number(document.querySelector('input[name="schedule"]:checked').value) || 0;
+      t.templateAnchors = {};
+      var anchorCount = Math.max(1, Number(state.partyCount) || 2);
+      for (var ap = 0; ap < anchorCount; ap++) {
+        var AL = String.fromCharCode(65 + ap);
+        var aEl = document.getElementById('anchor' + AL);
+        var aVal = aEl ? aEl.value.trim() : '';
+        if (!aVal) aVal = anchorDefault(AL);
+        t['anchor' + AL] = aVal;
+        var aCoords = state.type && state.type.templateAnchors && state.type.templateAnchors[AL];
+        if (aCoords) t.templateAnchors[AL] = aCoords;
+      }
+      t.templateAnchorHash = state.templateHash || (state.type && state.type.templateAnchorHash) || '';
       t.shareSourcePdf = true;
       t.created = state.type.created || 0;
       return t;
