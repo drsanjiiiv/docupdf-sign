@@ -477,13 +477,13 @@
       input.addEventListener('input', function () {
         pickedPdfId = input.value.trim();
         if (timer) clearTimeout(timer);
-        timer = setTimeout(function () { verifyAnchors(); }, 400);
+        timer = setTimeout(function () { verifyAnchors(); }, 800);
       });
     })();
 
     var totalSteps = 8;
     var stepNames = ['NAME', 'SHEET', 'PDF', 'ROWS / FILTER', 'SIGNERS', 'OUTPUT &amp; LINKS', 'EMAIL', 'SCHEDULE'];
-    var state = { typeId: '', type: null, headers: [], activeSheet: '', detectedMode: 'standalone', currentStep: 1, sheetMode: 'automatic', partyCount: 2, templateText: '', templatePages: [], templateMime: '', templateHash: '', extractState: 'idle', anchorStatus: {} };
+    var state = { typeId: '', type: null, headers: [], activeSheet: '', detectedMode: 'standalone', currentStep: 1, sheetMode: 'automatic', partyCount: 2, templateText: '', templatePages: [], templateMime: '', templateHash: '', templateRevision: '', lastFetchedTemplateId: '', extractState: 'idle', anchorStatus: {} };
     var visibleSteps = [1, 2, 3, 4, 5, 6, 7, 8];
     var PDFJS_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/';
     var pdfjsLib = null;
@@ -669,7 +669,7 @@
     }
 
     function classifyAnchor(anchor, rawText) {
-      if (state.extractState === 'noverify') return { status: 'grey', reason: "— can't verify (Google Doc / too large)" };
+      if (state.extractState === 'noverify') return { status: 'grey', reason: "— can't verify (too large)" };
       if (state.extractState === 'loading') return { status: 'grey', reason: '… reading template' };
       if (state.extractState === 'error') return { status: 'grey', reason: "— can't verify" };
       var a = String(anchor || '');
@@ -739,10 +739,10 @@
       }).catch(function () { return ''; });
     }
 
-    function extractTemplateText(pdfB64) {
+    function extractTemplateText(pdfB64, revision) {
       var bytes = base64ToUint8Array(pdfB64);
       return sha256Hex(bytes).then(function (hash) {
-        if (hash && hash === state.templateHash && state.templateText) {
+        if (revision && revision === state.templateRevision && state.templateText) {
           return { text: state.templateText, pages: state.templatePages || [], hash: hash };
         }
         return import(PDFJS_BASE + 'pdf.min.mjs').then(function (lib) {
@@ -787,16 +787,16 @@
         state.extractState = 'idle'; state.templateText = ''; setAnchorNote(''); recomputeAllRows();
         return;
       }
+      if (state.lastFetchedTemplateId === fileId && state.extractState === 'ready') {
+        setAnchorNote('');
+        recomputeAllRows();
+        return;
+      }
+      state.lastFetchedTemplateId = fileId;
       state.extractState = 'loading';
       setAnchorNote('');
       recomputeAllRows();
       S.run('GET_TEMPLATE_PDF_B64', [fileId]).then(function (res) {
-        if (res && res.googleDoc) {
-          state.extractState = 'noverify'; state.templateText = '';
-          setAnchorNote("This is a Google Doc template — anchors can't be verified here; it is converted to PDF at signing.");
-          recomputeAllRows();
-          return;
-        }
         if (res && res.tooLarge) {
           state.extractState = 'noverify'; state.templateText = '';
           setAnchorNote('Template is too large to verify anchors here.');
@@ -810,11 +810,16 @@
           return;
         }
         state.templateMime = res.mime || 'application/pdf';
-        extractTemplateText(res.pdfB64).then(function (out) {
+        var revision = res.headRevisionId || res.modifiedTime || '';
+        extractTemplateText(res.pdfB64, revision).then(function (out) {
           state.templateText = out.text || '';
           state.templatePages = out.pages || [];
           state.templateHash = out.hash || '';
-          if (state.type) state.type.templateAnchorHash = state.templateHash;
+          state.templateRevision = revision;
+          if (state.type) {
+            state.type.templateAnchorHash = state.templateHash;
+            state.type.templateAnchorRevision = revision;
+          }
           state.extractState = 'ready';
           setAnchorNote('');
           recomputeAllRows();
@@ -1066,6 +1071,7 @@
         if (aCoords) t.templateAnchors[AL] = aCoords;
       }
       t.templateAnchorHash = state.templateHash || (state.type && state.type.templateAnchorHash) || '';
+      t.templateAnchorRevision = state.templateRevision || (state.type && state.type.templateAnchorRevision) || '';
       t.shareSourcePdf = true;
       t.created = state.type.created || 0;
       return t;

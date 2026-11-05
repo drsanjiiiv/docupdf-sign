@@ -93,7 +93,8 @@ function _defaultType() {
     anchorA: 'On behalf of Signer A',
     anchorB: 'On behalf of Signer B',
     templateAnchors: {},          // { A: { page, x, y, fontSize, textWidth }, ... } keyed by signer letter
-    templateAnchorHash: '',       // SHA-256 of the template the anchors were extracted from
+    templateAnchorHash: '',       // SHA-256 of the template the anchors were extracted from (diagnostics)
+    templateAnchorRevision: '',   // Drive headRevisionId/modifiedTime when the anchors were extracted
     signerTextFieldLabel: '',     // optional signer text field (blank = off)
     initialsEnabled: true,
     reminderDays: 0,              // 0 = no reminders
@@ -257,10 +258,10 @@ function GET_SHEET_HEADERS_FOR(sheetName) {
 
 /**
  * Returns a template's bytes as base64 so the wizard can extract anchor text
- * client-side with pdf.js. Google-Doc templates are reported as {googleDoc:true}
- * (no bytes) so the wizard shows "can't verify" instead of a hard failure.
+ * client-side with pdf.js. Google-Doc templates are exported to PDF server-side,
+ * so extraction runs on the same bytes the signing flow will use.
  * @param {string} fileId
- * @return {Object} { ok, pdfB64?, mime?, name?, googleDoc?, tooLarge?, error? }
+ * @return {Object} { ok, pdfB64?, mime?, name?, modifiedTime?, headRevisionId?, tooLarge?, error? }
  */
 function GET_TEMPLATE_PDF_B64(fileId) {
   try {
@@ -271,9 +272,6 @@ function GET_TEMPLATE_PDF_B64(fileId) {
     var meta = _driveFetchMeta(id);
     if (!meta || !meta.ok) {
       return { ok: false, error: (meta && meta.error) || 'Could not read the template.' };
-    }
-    if (meta.mime === 'application/vnd.google-apps.document') {
-      return { ok: true, googleDoc: true, name: meta.name || '' };
     }
     var pr = _driveReadPdf(id);
     if (!pr.ok || !pr.bytes || !pr.bytes.length) {
@@ -286,7 +284,9 @@ function GET_TEMPLATE_PDF_B64(fileId) {
       ok: true,
       pdfB64: Utilities.base64Encode(pr.bytes),
       mime: 'application/pdf',
-      name: pr.name || meta.name || ''
+      name: pr.name || meta.name || '',
+      modifiedTime: meta.modifiedTime || '',
+      headRevisionId: meta.headRevisionId || ''
     };
   } catch (err) {
     Logger.log('GET_TEMPLATE_PDF_B64 error: %s', err.message);

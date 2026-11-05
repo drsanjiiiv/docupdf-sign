@@ -392,20 +392,20 @@ function NORMALIZE_FILE_ID(input) {
  * DriveApp.getFileById (that service requires drive.readonly/drive); the REST
  * API honors the per-file grants the Picker creates, so this is the reliable
  * read path for a picked template or a DocuMail-created PDF.
- * @return {Object} { ok, id?, name?, mime?, size?, code?, error? }
+ * @return {Object} { ok, id?, name?, mime?, size?, modifiedTime?, headRevisionId?, code?, error? }
  */
 function _driveFetchMeta(fileId) {
   try {
     var token = ScriptApp.getOAuthToken();
     var url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
-      '?fields=id,name,mimeType,size&supportsAllDrives=true';
+      '?fields=id,name,mimeType,size,modifiedTime,headRevisionId&supportsAllDrives=true';
     var res = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
     var code = res.getResponseCode();
     if (code !== 200) {
       return { ok: false, code: code, error: 'Drive API HTTP ' + code + ': ' + String(res.getContentText()).substring(0, 160) };
     }
     var meta = JSON.parse(res.getContentText());
-    return { ok: true, id: meta.id, name: meta.name, mime: meta.mimeType, size: meta.size || '' };
+    return { ok: true, id: meta.id, name: meta.name, mime: meta.mimeType, size: meta.size || '', modifiedTime: meta.modifiedTime || '', headRevisionId: meta.headRevisionId || '' };
   } catch (e) {
     return { ok: false, error: e.message };
   }
