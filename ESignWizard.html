@@ -569,6 +569,8 @@
       pickedPdfId = t.templateFileId || '';
       document.getElementById('autoSendEmail').checked = t.autoSendEmail !== false;
       document.getElementById('attachSourcePdf').checked = t.attachSourcePdf !== false;
+      document.getElementById('emailWorkingToSigners').checked = t.emailWorkingToSigners !== false;
+      document.getElementById('emailFinalToSigners').checked = t.emailFinalToSigners !== false;
       document.getElementById('notifyOnFinalize').checked = t.notifyOnFinalize !== false;
       document.getElementById('notifyOwnerEmail').value = t.notifyOwnerEmail || '';
       document.getElementById('companyName').value = t.companyName || '';
